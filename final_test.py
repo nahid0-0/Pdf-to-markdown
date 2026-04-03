@@ -18,10 +18,44 @@ def get_sizes(pdf_path):
                         sizes.append(span["size"])
     return sizes
 
-def classify(line_text, size, flags, font, left, body_size, max_size, base_left):
-    bold = "Bold" in font or "bold" in font or (flags & 2**4)
-    italic = "Italic" in font or "italic" in font or (flags & 2**1)
-    mono = "Mono" in font or "Courier" in font or "Code" in font or "mono" in font
+def merge_list_lines(lines_data):
+    merged = []
+    i = 0
+    while i < len(lines_data):
+        current = lines_data[i]
+        text = current["text"].strip()
+        is_number = text.isdigit()
+        is_bullet = text in ("•", "-", "*", "‣", "◦", "·")
+
+        if (is_number or is_bullet) and i + 1 < len(lines_data) and lines_data[i + 1]["left"] > current["left"] + 10:
+            next_line = lines_data[i + 1]
+            merged.append({
+                "text": next_line["text"],
+                "size": next_line["size"],
+                "flags": next_line["flags"],
+                "font": next_line["font"],
+                "left": current["left"],
+                "is_list": True,
+                "is_numbered": is_number,
+                "number": text if is_number else None
+            })
+            i += 2
+        else:
+            current["is_list"] = False
+            current["is_numbered"] = False
+            current["number"] = None
+            merged.append(current)
+            i += 1
+    return merged
+
+def classify(item, body_size, max_size):
+    line_text = item["text"]
+    size = item["size"]
+    flags = item["flags"]
+    font = item["font"]
+    bold = "Bold" in font or "bold" in font or bool(flags & 2**4)
+    italic = "Italic" in font or "italic" in font or bool(flags & 2**1)
+    mono = any(x in font for x in ["Mono", "Courier", "Code", "mono"])
 
     if mono:
         return f"`{line_text}`"
@@ -33,20 +67,19 @@ def classify(line_text, size, flags, font, left, body_size, max_size, base_left)
     elif size >= body_size * 1.15:
         return f"### {line_text}"
 
-    is_list_number = line_text.strip().isdigit() and left <= base_left + 5
-    is_list_item = left >= base_left + 10
+    if item["is_list"]:
+        if item["is_numbered"]:
+            prefix = f"{item['number']}."
+        else:
+            prefix = "-"
 
-    if is_list_number:
-        return None
-
-    if is_list_item:
         if bold and italic:
-            return f"- ***{line_text}***"
+            return f"{prefix} ***{line_text}***"
         elif bold:
-            return f"- **{line_text}**"
+            return f"{prefix} **{line_text}**"
         elif italic:
-            return f"- *{line_text}*"
-        return f"- {line_text}"
+            return f"{prefix} *{line_text}*"
+        return f"{prefix} {line_text}"
 
     if bold and italic:
         return f"***{line_text}***"
@@ -91,6 +124,7 @@ def convert(pdf_path, output_path):
     with pdfplumber.open(pdf_path) as plumber_doc:
         for i, (fitz_page, plumber_page) in enumerate(zip(doc, plumber_doc.pages)):
             page_width = fitz_page.rect.width
+
             lefts = []
             for block in fitz_page.get_text("dict")["blocks"]:
                 if block["type"] != 0:
@@ -103,7 +137,6 @@ def convert(pdf_path, output_path):
             table_bboxes = [t.bbox for t in plumber_page.find_tables()]
             tables = plumber_page.extract_tables()
             table_map = {t.bbox: tables[j] for j, t in enumerate(plumber_page.find_tables())}
-
             rendered_tables = set()
 
             for block in fitz_page.get_text("dict")["blocks"]:
@@ -122,21 +155,24 @@ def convert(pdf_path, output_path):
                         rendered_tables.add(matched_bbox)
                     continue
 
+                lines_data = []
                 for line in block["lines"]:
                     spans = line["spans"]
                     line_text = "".join(span["text"] for span in spans).strip()
                     if not line_text:
                         continue
+                    lines_data.append({
+                        "text": line_text,
+                        "size": max(span["size"] for span in spans),
+                        "flags": max(span["flags"] for span in spans),
+                        "font": spans[0]["font"],
+                        "left": spans[0]["bbox"][0]
+                    })
 
-                    size = max(span["size"] for span in spans)
-                    flags = max(span["flags"] for span in spans)
-                    font = spans[0]["font"]
-                    left = spans[0]["bbox"][0]
-
-                    if is_footer(line_text, size, left, page_width, body_size):
+                for item in merge_list_lines(lines_data):
+                    if is_footer(item["text"], item["size"], item["left"], page_width, body_size):
                         continue
-
-                    result = classify(line_text, size, flags, font, left, body_size, max_size, base_left)
+                    result = classify(item, body_size, max_size)
                     if result:
                         md_lines.append(result)
 
