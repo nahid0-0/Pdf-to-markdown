@@ -1,0 +1,75 @@
+
+========== PAGE 1 ==========
+
+[TEXT] Trainee SWE Screening Task - Sugarclass Limited
+[TEXT] Role: Trainee Software Engineer
+[TEXT] Submission Deadline: 4th April 2026, 8:00 PM
+[TEXT] Objective
+[TEXT] Build a CPU-based PDF to Markdown converter. The task evaluates your ability to process files,
+[TEXT] structure logic, and document your work.
+[TEXT] Core Requirements
+[TEXT] 1
+[TEXT] Accept a PDF file as input
+[TEXT] 2
+[TEXT] Extract content
+[TEXT] 3
+[TEXT] Convert into structured Markdown (.md)
+[TEXT] Expected Markdown Output
+[TEXT] 1
+[TEXT] Headings (#, ##)
+[TEXT] 2
+[TEXT] Paragraphs
+[TEXT] 3
+[TEXT] Lists
+[TEXT] 4
+[TEXT] Basic formatting (bold, italic)
+[TEXT] 5
+[TEXT] Tables (bonus)
+[TEXT] 6
+[TEXT] Code blocks (bonus)
+[TEXT] Technical Constraints
+[TEXT] 1
+[TEXT] CPU only (no GPU)
+[TEXT] 2
+[TEXT] Any language (Python preferred)
+[TEXT] 3
+[TEXT] No paid APIs
+[TEXT] 4
+[TEXT] Open-source libraries allowed
+[TEXT] Application Interface
+[TEXT] 1
+[TEXT] CLI Tool (e.g., python app.py input.pdf output.md)
+[TEXT] 2
+[TEXT] OR Minimal Web App (upload + download)
+[TEXT] Submission Requirements
+[TEXT] 1
+[TEXT] Public GitHub repository
+[TEXT] 2
+[TEXT] Clean source code
+[TEXT] 3
+[TEXT] Detailed README (setup, usage, explanation, limitations)
+[TEXT] 4
+[TEXT] Sample PDFs and outputs
+[TEXT] Evaluation Criteria
+
+========== PAGE 2 ==========
+
+[TEXT] Bonus Points
+[TEXT] 1
+[TEXT] Table extraction
+[TEXT] 2
+[TEXT] OCR fallback
+[TEXT] 3
+[TEXT] Smart formatting
+[TEXT] 4
+[TEXT] Lightweight LLM cleanup
+[TEXT] Note
+[TEXT] Focus on clarity, clean structure, and problem-solving approach over perfection.
+
+[TABLE 1]
+['Criteria', 'Weight']
+['Code Quality', '25%']
+['Accuracy', '25%']
+['Approach', '20%']
+['Documentation', '20%']
+['Bonus', '10%']

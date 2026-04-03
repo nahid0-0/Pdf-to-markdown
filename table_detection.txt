@@ -1,0 +1,6 @@
+['Criteria', 'Weight']
+['Code Quality', '25%']
+['Accuracy', '25%']
+['Approach', '20%']
+['Documentation', '20%']
+['Bonus', '10%']
