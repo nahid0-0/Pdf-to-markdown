@@ -32,6 +32,8 @@ for i, (fitz_page, plumber_page) in enumerate(zip(fitz_doc, plumber_doc.pages)):
             left = spans[0]["origin"][0]
             output.append(f"[TEXT] size={size:.1f} bold={bold} italic={italic} left={left:.1f} | {line_text}")
 
-with open("text_extraction.txt", "w", encoding="utf-8") as f:
+with open("pymupdf_text_extraction.txt", "w", encoding="utf-8") as f:
     f.write("\n".join(output))
+
+print("Saved to pymupdf_text_extraction.txt")
 
