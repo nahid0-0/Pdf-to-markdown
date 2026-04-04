@@ -58,7 +58,7 @@ For LLM polish support:
 pip install google-generativeai
 ```
 
-No package setup or virtual environment is required, though one is recommended.
+No package setup file is included; install dependencies directly with pip. A virtual environment is recommended but not required.
 
 ---
 
@@ -95,7 +95,7 @@ set GEMINI_API_KEY=your_key_here
 $env:GEMINI_API_KEY = "your_key_here"
 ```
 
-If the key is missing or `google-generativeai` is not installed, the polish step is skipped with a warning and the raw conversion output is written instead.
+If the key is missing or `google-generativeai` is not installed, the polish step is skipped with a warning printed to stderr and the raw conversion output is written instead.
 
 ---
 
@@ -241,7 +241,7 @@ All values are hardcoded in the source. Relevant defaults:
 
 ## Samples
 
-The `stress_tests/` directory contains PDFs and their converted outputs used during development.
+The `stress_tests/` directory contains PDFs and their converted outputs used during development. These serve as benchmarks to compare raw extraction quality against the `--polish` pass.
 
 ### Text extraction (non-OCR)
 
