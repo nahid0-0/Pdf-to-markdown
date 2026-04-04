@@ -103,13 +103,13 @@ If the key is missing or `google-generativeai` is not installed, the polish step
 
 ### System flow
 
-![System flow diagram](diagrams/pdf_to_md_system_flow.svg)
+<img src="diagrams/pdf_to_md_system_flow.svg" width="480" alt="System flow diagram" />
 
 The converter processes each page independently, then merges everything into a single Markdown file.
 
 ### Library map
 
-![Library map](diagrams/pdf_to_md_library_map.svg)
+<img src="diagrams/pdf_to_md_library_map.svg" width="480" alt="Library map" />
 
 ### Page routing
 
