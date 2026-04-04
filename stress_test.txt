@@ -80,263 +80,149 @@ and **special characters** such as backslashes, angle brackets, and Unicode lite
 
 2. **1 Python – Async HTTP Client**
 
-`# Python 3.11  |  async/await + type hints`
-
-`from __future__ import annotations`
-
-`import asyncio`
-
-`import httpx`
-
-`from typing import Any`
-
-`BASE_URL = "https://api.example.com/v2"`
-
-`async def fetch_paginated(`
-
-`    endpoint: str,`
-
-`    *,`
-
-`    page_size: int = 100,`
-
-`    headers: dict[str, str] | None = None,`
-
-`) -> list[dict[str, Any]]:`
-
-`    """Fetch all pages from a paginated REST endpoint."""`
-
-`    results: list[dict[str, Any]] = []`
-
-`    params = {"limit": page_size, "offset": 0}`
-
-`    async with httpx.AsyncClient(base_url=BASE_URL, timeout=30.0) as client:`
-
-`        while True:`
-
-`            resp = await client.get(endpoint, params=params, headers=headers or {})`
-
-`            resp.raise_for_status()`
-
-`            data = resp.json()`
-
-`            results.extend(data["items"])`
-
-`            if len(data["items"]) < page_size:`
-
-`                break`
-
-`            params["offset"] += page_size`
-
-`    return results`
-
-`if __name__ == "__main__":`
-
-`    items = asyncio.run(fetch_paginated("/products", page_size=50))`
-
-`    print(f"Fetched {len(items)} items")`
+```python
+# Python 3.11  |  async/await + type hints
+from __future__ import annotations
+import asyncio
+import httpx
+from typing import Any
+BASE_URL = "https://api.example.com/v2"
+async def fetch_paginated(
+    endpoint: str,
+    *,
+    page_size: int = 100,
+    headers: dict[str, str] | None = None,
+) -> list[dict[str, Any]]:
+    """Fetch all pages from a paginated REST endpoint."""
+    results: list[dict[str, Any]] = []
+    params = {"limit": page_size, "offset": 0}
+    async with httpx.AsyncClient(base_url=BASE_URL, timeout=30.0) as client:
+        while True:
+            resp = await client.get(endpoint, params=params, headers=headers or {})
+            resp.raise_for_status()
+            data = resp.json()
+            results.extend(data["items"])
+            if len(data["items"]) < page_size:
+                break
+            params["offset"] += page_size
+    return results
+if __name__ == "__main__":
+    items = asyncio.run(fetch_paginated("/products", page_size=50))
+    print(f"Fetched {len(items)} items")
+```
 
 2. **2 TypeScript – Generic Repository Pattern**
 
-`// TypeScript 5.x`
-
-`interface Entity {`
-
-`  id: string;`
-
-`  createdAt: Date;`
-
-`  updatedAt: Date;`
-
-`}`
-
-`  findById(id: string): Promise<T | null>;`
-
-`  findAll(filter?: Partial<T>): Promise<T[]>;`
-
-`  save(entity: Omit<T, keyof Entity>): Promise<T>;`
-
-`  delete(id: string): Promise<boolean>;`
-
-`}`
-
-`class InMemoryRepository<T extends Entity> implements Repository<T> {`
-
-`  private store = new Map<string, T>();`
-
-`  async findById(id: string): Promise<T | null> {`
-
-`    return this.store.get(id) ?? null;`
-
-`  }`
-
-`  async findAll(filter?: Partial<T>): Promise<T[]> {`
-
-`    const all = [...this.store.values()];`
-
-`    if (!filter) return all;`
-
-`    return all.filter(item =>`
-
-`      Object.entries(filter).every(([k, v]) => (item as any)[k] === v)`
-
-`    );`
-
-`  }`
-
-`  async save(data: Omit<T, keyof Entity>): Promise<T> {`
-
-`    const entity = {`
-
-`      ...data,`
-
-`      id: crypto.randomUUID(),`
-
-`      createdAt: new Date(),`
-
-`      updatedAt: new Date(),`
-
-`    } as T;`
-
-`    this.store.set(entity.id, entity);`
-
-`    return entity;`
-
-`  }`
-
-`  async delete(id: string): Promise<boolean> {`
-
-`    return this.store.delete(id);`
-
-`  }`
-
-`}`
+```typescript
+// TypeScript 5.x
+interface Entity {
+  id: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+  findById(id: string): Promise<T | null>;
+  findAll(filter?: Partial<T>): Promise<T[]>;
+  save(entity: Omit<T, keyof Entity>): Promise<T>;
+  delete(id: string): Promise<boolean>;
+}
+class InMemoryRepository<T extends Entity> implements Repository<T> {
+  private store = new Map<string, T>();
+  async findById(id: string): Promise<T | null> {
+    return this.store.get(id) ?? null;
+  }
+  async findAll(filter?: Partial<T>): Promise<T[]> {
+    const all = [...this.store.values()];
+    if (!filter) return all;
+    return all.filter(item =>
+      Object.entries(filter).every(([k, v]) => (item as any)[k] === v)
+    );
+  }
+  async save(data: Omit<T, keyof Entity>): Promise<T> {
+    const entity = {
+      ...data,
+      id: crypto.randomUUID(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as T;
+    this.store.set(entity.id, entity);
+    return entity;
+  }
+  async delete(id: string): Promise<boolean> {
+    return this.store.delete(id);
+  }
+}
+```
 
 2. **3 SQL – Complex Analytical Query**
 
-- `- PostgreSQL 15+: monthly revenue cohort analysis`
-
-`WITH monthly_orders AS (`
-
-`    SELECT`
-
-`        DATE_TRUNC('month', o.created_at)      AS order_month,`
-
-`        DATE_TRUNC('month', u.created_at)      AS cohort_month,`
-
-`        u.id                                   AS user_id,`
-
-`        SUM(oi.quantity * oi.unit_price)       AS revenue`
-
-`    FROM orders o`
-
-`    JOIN order_items oi ON oi.order_id = o.id`
-
-`    JOIN users u        ON u.id = o.user_id`
-
-`    WHERE o.status = 'completed'`
-
-`      AND o.created_at >= '2023-01-01'`
-
-`    GROUP BY 1, 2, 3`
-
-`),`
-
-`    SELECT cohort_month, COUNT(DISTINCT user_id) AS size`
-
-`    FROM monthly_orders`
-
-`    WHERE order_month = cohort_month`
-
-`    GROUP BY 1`
-
-`),`
-
-`retention AS (`
-
-`    SELECT`
-
-`        mo.cohort_month,`
-
-`        EXTRACT(MONTH FROM AGE(mo.order_month, mo.cohort_month)) AS months_since_join,`
-
-`        COUNT(DISTINCT mo.user_id)  AS active_users,`
-
-`        SUM(mo.revenue)             AS total_revenue`
-
-`    FROM monthly_orders mo`
-
-`    GROUP BY 1, 2`
-
-`)`
-
-`SELECT`
-
-`    r.cohort_month,`
-
-`    r.months_since_join,`
-
-`    cs.size                                           AS cohort_size,`
-
-`    r.active_users,`
-
-`    ROUND(r.active_users * 100.0 / cs.size, 2)        AS retention_pct,`
-
-`    ROUND(r.total_revenue / NULLIF(r.active_users,0), 2) AS arpu`
-
-`FROM retention r`
-
-`JOIN cohort_size cs USING (cohort_month)`
-
-`ORDER BY r.cohort_month, r.months_since_join;`
+```
+- - PostgreSQL 15+: monthly revenue cohort analysis
+WITH monthly_orders AS (
+    SELECT
+        DATE_TRUNC('month', o.created_at)      AS order_month,
+        DATE_TRUNC('month', u.created_at)      AS cohort_month,
+        u.id                                   AS user_id,
+        SUM(oi.quantity * oi.unit_price)       AS revenue
+    FROM orders o
+    JOIN order_items oi ON oi.order_id = o.id
+    JOIN users u        ON u.id = o.user_id
+    WHERE o.status = 'completed'
+      AND o.created_at >= '2023-01-01'
+    GROUP BY 1, 2, 3
+),
+    SELECT cohort_month, COUNT(DISTINCT user_id) AS size
+    FROM monthly_orders
+    WHERE order_month = cohort_month
+    GROUP BY 1
+),
+retention AS (
+    SELECT
+        mo.cohort_month,
+        EXTRACT(MONTH FROM AGE(mo.order_month, mo.cohort_month)) AS months_since_join,
+        COUNT(DISTINCT mo.user_id)  AS active_users,
+        SUM(mo.revenue)             AS total_revenue
+    FROM monthly_orders mo
+    GROUP BY 1, 2
+)
+SELECT
+    r.cohort_month,
+    r.months_since_join,
+    cs.size                                           AS cohort_size,
+    r.active_users,
+    ROUND(r.active_users * 100.0 / cs.size, 2)        AS retention_pct,
+    ROUND(r.total_revenue / NULLIF(r.active_users,0), 2) AS arpu
+FROM retention r
+JOIN cohort_size cs USING (cohort_month)
+ORDER BY r.cohort_month, r.months_since_join;
+```
 
 2. **4 Bash – Deployment Script**
 
-`#!/usr/bin/env bash`
-
-`set -euo pipefail`
-
-`IFS=$'\n\t'`
-
-`# `II` Config `IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
-
-`APP="my-service"`
-
-`REGISTRY="registry.example.com"`
-
-`ENV="${1:-staging}"        # staging | production`
-
-`REPLICAS="${2:-2}"`
-
-`log()  { echo "[$(date -u +%FT%TZ)] $*"; }`
-
-`die()  { log "ERROR: $*" >&2; exit 1; }`
-
-`[[ "$ENV" =~ ^(staging|production)$ ]] || die "Invalid ENV: $ENV"`
-
-`# `II` Build `IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
-
-`TAG="$(git rev-parse --short HEAD)"`
-
-`IMAGE="$REGISTRY/$APP:$TAG"`
-
-`log "Building $IMAGE ..."`
-
-`docker build --platform linux/amd64 -t "$IMAGE" .`
-
-`# `II` Push `IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
-
-`log "Pushing to registry ..."`
-
-`docker push "$IMAGE"`
-
-`# `II` Deploy `IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
-
-`kubectl set image "deployment/$APP" "$APP=$IMAGE" --namespace "$ENV"`
-
-`kubectl rollout status "deployment/$APP" --namespace "$ENV" --timeout=120s`
-
-`log "Deployment complete: $IMAGE -> $ENV"`
+```
+#!/usr/bin/env bash
+set -euo pipefail
+IFS=$'\n\t'
+# II Config IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+APP="my-service"
+REGISTRY="registry.example.com"
+ENV="${1:-staging}"        # staging | production
+REPLICAS="${2:-2}"
+log()  { echo "[$(date -u +%FT%TZ)] $*"; }
+die()  { log "ERROR: $*" >&2; exit 1; }
+[[ "$ENV" =~ ^(staging|production)$ ]] || die "Invalid ENV: $ENV"
+# II Build IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+TAG="$(git rev-parse --short HEAD)"
+IMAGE="$REGISTRY/$APP:$TAG"
+log "Building $IMAGE ..."
+docker build --platform linux/amd64 -t "$IMAGE" .
+# II Push IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+log "Pushing to registry ..."
+docker push "$IMAGE"
+# II Deploy IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+kubectl set image "deployment/$APP" "$APP=$IMAGE" --namespace "$ENV"
+kubectl rollout status "deployment/$APP" --namespace "$ENV" --timeout=120s
+log "Deployment complete: $IMAGE -> $ENV"
+```
 
 3. **Tables**
 
@@ -475,79 +361,49 @@ Mathematical: x2 + y2 = z2. Chemical: H2O and CO2. Currency: $ 1,234.56 | 1.234,
 
 The following is a long identifier that may challenge line-wrapping: `com.example.platform.services.authen`
 
-`tication.providers.oauth2.handlers.RefreshTokenExchangeHandler`. And a long URL: `https://api.exampl`
-
-`e.com/v2/organisations/org_01HXYZ/members?include=roles,permissions&page_size=100&cursor=eyJpZCI6`
-
-`MTIzfQ`.
+```
+tication.providers.oauth2.handlers.RefreshTokenExchangeHandler`. And a long URL: `https://api.exampl
+e.com/v2/organisations/org_01HXYZ/members?include=roles,permissions&page_size=100&cursor=eyJpZCI6
+MTIzfQ.
+```
 
 5. **3 Mixed-Language Code Block**
 
-`# docker-compose.yml`
-
-`version: "3.9"`
-
-`services:`
-
-`  api:`
-
-`    image: registry.example.com/api:${TAG:-latest}`
-
-`    environment:`
-
-`      DATABASE_URL: "postgres://user:${DB_PASS}@db:5432/app"`
-
-`      REDIS_URL: "redis://:${REDIS_PASS}@cache:6379/0"`
-
-`      SECRET_KEY: "${SECRET_KEY}"`
-
-`    depends_on:`
-
-`      db:`
-
-`        condition: service_healthy`
-
-`    deploy:`
-
-`      replicas: 3`
-
-`      update_config:`
-
-`        parallelism: 1`
-
-`        delay: 10s`
-
-`        failure_action: rollback`
-
-`  db:`
-
-`    image: postgres:16-alpine`
-
-`    environment:`
-
-`      POSTGRES_PASSWORD: "${DB_PASS}"`
-
-`    healthcheck:`
-
-`      test: ["CMD-SHELL", "pg_isready -U postgres"]`
-
-`      interval: 5s`
-
-`      timeout: 5s`
-
-`      retries: 5`
-
-`    volumes:`
-
-- `      - pgdata:/var/lib/postgresql/data`
-
-`  cache:`
-
-`    image: redis:7-alpine`
-
-`volumes:`
-
-`  pgdata:`
+```yaml
+# docker-compose.yml
+version: "3.9"
+services:
+  api:
+    image: registry.example.com/api:${TAG:-latest}
+    environment:
+      DATABASE_URL: "postgres://user:${DB_PASS}@db:5432/app"
+      REDIS_URL: "redis://:${REDIS_PASS}@cache:6379/0"
+      SECRET_KEY: "${SECRET_KEY}"
+    depends_on:
+      db:
+        condition: service_healthy
+    deploy:
+      replicas: 3
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: "${DB_PASS}"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+-       - pgdata:/var/lib/postgresql/data
+  cache:
+    image: redis:7-alpine
+volumes:
+  pgdata:
+```
 
 5. **4 Final Checklist — Converter Validation**
 

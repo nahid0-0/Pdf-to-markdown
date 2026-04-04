@@ -126,18 +126,28 @@ def detect_code_language(first_line):
     return ''
 
 def is_full_code_line(line):
-    """Check if a markdown line is entirely inline code (starts and ends with backtick)."""
+    """Check if a markdown line is entirely or mostly inline code."""
     stripped = line.strip()
     if not stripped:
         return False
-    # Match lines that are entirely wrapped in backticks: `...`
-    # or lines starting with `- ` followed by backtick content (list item with code)
+    # Fully wrapped in backticks
     if stripped.startswith('`') and stripped.endswith('`') and len(stripped) > 2:
+        return True
+    # Check if majority of the line content is inside backticks
+    backtick_chars = sum(len(m) for m in re.findall(r'`([^`]+)`', stripped))
+    total_chars = len(stripped.replace('`', ''))
+    if total_chars > 0 and backtick_chars / total_chars > 0.6:
         return True
     return False
 
+
+def has_code_content(line):
+    """Check if a line contains any backtick-wrapped content (even if not fully code)."""
+    return bool(re.search(r'`[^`]+`', line.strip()))
+
 def merge_code_blocks(md_lines):
-    """Post-process md_lines to group consecutive inline-code lines into fenced code blocks."""
+    """Post-process md_lines to group consecutive inline-code lines into fenced code blocks.
+    Also bridges single non-code gaps between code runs if they contain backtick content."""
     result = []
     i = 0
     while i < len(md_lines):
@@ -145,18 +155,30 @@ def merge_code_blocks(md_lines):
         if is_full_code_line(md_lines[i]):
             code_run = [md_lines[i]]
             j = i + 1
-            while j < len(md_lines) and is_full_code_line(md_lines[j]):
-                code_run.append(md_lines[j])
-                j += 1
+            while j < len(md_lines):
+                if is_full_code_line(md_lines[j]):
+                    code_run.append(md_lines[j])
+                    j += 1
+                # Bridge: a non-code line with backtick content between code lines
+                elif (has_code_content(md_lines[j]) and 
+                      j + 1 < len(md_lines) and is_full_code_line(md_lines[j + 1])):
+                    code_run.append(md_lines[j])   # absorb the bridge line
+                    code_run.append(md_lines[j+1])  # include next code line
+                    j += 2
+                else:
+                    break
             
             if len(code_run) >= 2:
                 # Strip backticks from each line to get raw code
                 raw_lines = []
                 for cl in code_run:
                     stripped = cl.strip()
-                    # Remove outer backticks
+                    # Remove all backtick markers to extract raw code
                     if stripped.startswith('`') and stripped.endswith('`'):
                         stripped = stripped[1:-1]
+                    else:
+                        # Remove inline backtick markers, keeping the text
+                        stripped = stripped.replace('`', '')
                     raw_lines.append(stripped)
                 
                 lang = detect_code_language(raw_lines[0])
@@ -266,9 +288,14 @@ def process_blocks(fitz_page, table_bboxes, rendered_tables, table_map, body_siz
             fmt_text = "".join(format_span(s) for s in line["spans"]).strip()
             size = max(s["size"] for s in line["spans"])
             bbox = (line["bbox"][0], line["bbox"][1], line["bbox"][2], line["bbox"][3])
-            # Check if all non-empty spans in this line are monospace
+            # Check if the majority of text characters are in monospace spans
             non_empty_spans = [s for s in line["spans"] if s["text"].strip()]
-            all_mono = all(is_mono_font(s) for s in non_empty_spans) if non_empty_spans else False
+            if non_empty_spans:
+                mono_chars = sum(len(s["text"].strip()) for s in non_empty_spans if is_mono_font(s))
+                total_chars = sum(len(s["text"].strip()) for s in non_empty_spans)
+                all_mono = (mono_chars / total_chars > 0.5) if total_chars > 0 else False
+            else:
+                all_mono = False
             lines_data.append({"raw": raw_text, "fmt": fmt_text, "size": size, "bbox": bbox, "is_code": all_mono})
 
         if not lines_data: 

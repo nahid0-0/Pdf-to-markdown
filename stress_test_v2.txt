@@ -1,0 +1,545 @@
+# PDF → Markdown Stress Test v2
+
+### Extended Edition — Inline Formatting Gauntlet
+
+This document is the **second, harder edition** of the converter stress-test. *Every paragraph* in this file
+
+deliberately mixes **bold**, *italic*, and ***bold-italic*** spans *inside the same sentence* — sometimes **multiple**
+
+**times**. Checklists items are themselves **richly formatted**. Table cells contain *italic annotations* and **bold**
+
+**verdicts**. Code comments use **ALL-CAPS keywords**. The goal is to ***break every assumption*** a naive
+
+parser might make.
+
+**Scope:* 8 sections*, **6 checklists**, **5 code blocks** across 4 languages, **4 tables**, *callout blocks of 3 types*,
+
+and ***inline formatting in virtually every sentence***.
+
+1. **Inline Formatting Torture Test**
+
+1. **1 Single-word span transitions**
+
+The **quick** brown *fox* jumps over the ***lazy*** dog. A *second* sentence with **bold** at the *start*, **middle**, and *end*.
+
+Transition with **no***space*between — then ***combined*** immediately after plain text.
+
+**Bold opens the sentence** and plain text continues until *italic closes it.* Reverse: plain opens, *italic in the*
+
+*middle,* plain again, then **bold at the very end.**
+
+Now a chain: **A** then *B* then **C** then *D* then ***E*** then plain then ***F and G*** then *H* then **I**. Each transition must
+
+be preserved independently.
+
+1. **2 Mid-word and partial-word spans**
+
+The word un**expect**ed has a bold infix. The word semi*auto*matic has an italic infix. The word over***load***ed
+
+has a bold-italic infix. Re**config**ur*able* has two separate spans in one word. Pro**to***col*Buffer has adjacent
+
+spans with no gap.
+
+1. **3 Nested and adjacent spans**
+
+Adjacent without gap: **bold***italic* — the converter must not merge these into one span. Then *italic***bold** in
+
+reverse order. Then ***bold-italic*****bold-only** — the italic closes while bold remains open. Finally
+
+*italic-only****bold-italic*** — bold opens inside an existing italic span.
+
+1. **4 Spans crossing punctuation**
+
+A **bold phrase, with a comma** inside it. An *italic clause; followed by a semicolon* still italic. ***Bold-italic***
+
+***with a colon: like this*** — then plain. Parenthetical (*italic inside parens*) back to plain. A **bold (nested**
+
+**parenthetical) still bold** after the paren. Quoted *"italic inside double-quotes"* and **'bold inside**
+
+**single-quotes'**.
+
+1. **5 Long dense paragraph — maximum density**
+
+**Systems design** is the process of *defining the architecture*, modules, interfaces, and **data flow** of a
+
+system to satisfy ***specified requirements***. A well-designed system is *maintainable*, **scalable**, and
+
+***fault-tolerant***. The **CAP theorem** states that a distributed system can guarantee at most *two* of
+
+**Consistency**, **Availability**, and **Partition tolerance** simultaneously — ***never all three***. When designing
+
+for *high availability*, architects often choose **eventual consistency** over *strong consistency*, accepting that
+
+reads may return ***stale data*** in exchange for **lower latency** and *higher throughput*. This trade-off is **not a**
+
+**bug** — it is a ***deliberate, documented engineering decision*** that must be *communicated clearly* to all
+
+stakeholders.
+
+2. **Checklists with Inline Formatting**
+
+Every checklist item below contains **bold**, *italic*, or ***bold-italic*** spans *inside the label itself*. This tests
+
+whether the converter can handle rich text **inside list markers** without stripping the formatting.
+
+2. **1 Infrastructure Readiness**
+
+- [x] Kubernetes cluster on **v1.29+**; node pool autoscaling *enabled*
+
+- [x] **Cert-manager** installed; TLS certificates ***auto-renewed***
+
+- [ ] Ingress controller healthy — *check with *kubectl get ingress -A**
+
+- [ ] **Persistent volumes** provisioned; storage class set to *retain*
+
+- [x] Namespace **production** has *resource quotas* applied
+
+- [ ] Pod disruption budgets set for **all** critical deployments
+
+- [ ] Horizontal pod autoscaler *min/max* reviewed and **approved**
+
+- [x] Network policies: **default-deny** ingress *and* egress applied
+
+- [ ] Egress to **external APIs** allowlisted *per service*
+
+- [ ] Secrets stored in **Vault**; *dynamic secrets* rotation ***active***
+
+2. **2 Release Checklist — Backend**
+
+- [x] **CHANGELOG.md** updated with *all breaking changes* noted
+
+- [x] Semantic version bumped: **MAJOR** if breaking, *MINOR* if feature, **PATCH** if fix
+
+- [ ] ***Database migration*** reviewed by a second engineer
+
+- [ ] Migration is **backwards-compatible**: old app version still works against *new schema*
+
+- [x] Feature flags: **all new features** behind a flag for *gradual rollout*
+
+- [ ] Flag **new-checkout-flow** set to *5% rollout* in production
+
+- [ ] Flag **async-invoice-gen** set to *disabled* until load test passes
+
+- [x] **Rollback plan** documented: estimated time *under 10 minutes*
+
+- [ ] Load test passed at **150% of peak traffic** with *p99 < 200ms*
+
+- [ ] ***Go/No-Go meeting*** completed; sign-off from **Engineering Lead** and *Product*
+
+2. **3 Observability Checklist**
+
+- [x] **Structured logging** in JSON; fields: *level, msg, trace_id, span_id, service*
+
+- [ ] Log level set to **INFO** in production — ***never DEBUG*** in prod
+
+- [x] **Prometheus** metrics exported on */metrics*; scraped every **15s**
+
+- [ ] Custom metric **http_request_duration_seconds** has correct *bucket boundaries*
+
+- [ ] Buckets cover: *5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s*
+
+- [x] Grafana dashboard imported; panels for **RPS**, *error rate*, ***p99 latency***
+
+- [ ] **SLO alert** fires when *error rate > 0.1%* over a **5-minute window**
+
+- [ ] **PagerDuty** integration tested: *alert fires* and **on-call engineer paged**
+
+- [ ] Distributed tracing via **OpenTelemetry**; *sampling rate* set to **5%**
+
+- [x] Runbook linked in alert body: ***engineers can resolve without Slack pings***
+
+3. **Code Blocks**
+
+Code blocks below are in **five languages**. Prose surrounding each block contains *inline code references*
+
+using `monospace` font, mixed with **bold labels** and *italic commentary*. The converter must **not** apply
+
+bold/italic parsing *inside* fenced code blocks.
+
+3. **1 Rust — Concurrent Task Queue**
+
+The `TaskQueue<T>` struct below is **lock-free** for reads and uses *channel-based* backpressure. Note the
+
+***unsafe block*** on line 31 — it is **sound** because the `Arc` guarantees the pointer outlives all workers.
+
+```
+// Rust 1.78 — async task queue with bounded channel
+use std::sync::Arc;
+use tokio::sync::{mpsc, Semaphore};
+pub struct TaskQueue<T: Send + 'static> {
+    tx:        mpsc::Sender<T>,
+    semaphore: Arc<Semaphore>,
+    workers:   usize,
+}
+impl<T: Send + 'static> TaskQueue<T> {
+    pub fn new(workers: usize, buffer: usize) -> (Self, mpsc::Receiver<T>) {
+        let (tx, rx) = mpsc::channel(buffer);
+        let sem = Arc::new(Semaphore::new(workers));
+        (Self { tx, semaphore: sem, workers }, rx)
+    }
+    /// Enqueue a task; blocks if the queue is full (backpressure).
+    pub async fn push(&self, task: T) -> Result<(), mpsc::error::SendError<T>> {
+        let _permit = self.semaphore.acquire().await.unwrap(); // CRITICAL: hold permit
+        self.tx.send(task).await
+    }
+    pub fn capacity(&self) -> usize { self.workers }
+}
+/// Spawn N worker tasks that drain the queue.
+pub async fn spawn_workers<T, F, Fut>(mut rx: mpsc::Receiver<T>, n: usize, f: F)
+where
+    T:   Send + 'static,
+    F:   Fn(T) -> Fut + Send + Sync + 'static,
+    Fut: std::future::Future<Output = ()> + Send,
+{
+    let f = Arc::new(f);
+    let mut handles = Vec::with_capacity(n);
+    while let Some(task) = rx.recv().await {
+        let f = Arc::clone(&f);
+        handles.push(tokio::spawn(async move { f(task).await }));
+    }
+    for h in handles { let _ = h.await; }
+}
+```
+
+3. **2 Go — HTTP Middleware Chain**
+
+Go's `http.Handler` interface makes middleware trivial, but **ordering matters**. The chain below applies
+
+*logging first*, then **authentication**, then ***rate-limiting***. Reversing auth and rate-limiting would allow
+
+*unauthenticated* requests to consume quota — a **security flaw**.
+
+```
+// Go 1.22 — composable middleware chain
+package middleware
+import (
+    "context"
+    "log/slog"
+    "net/http"
+    "time"
+    "golang.org/x/time/rate"
+)
+type ctxKey string
+const UserKey ctxKey = "user"
+// Chain applies middlewares right-to-left so the first argument is outermost.
+func Chain(h http.Handler, mws ...func(http.Handler) http.Handler) http.Handler {
+    for i := len(mws) - 1; i >= 0; i-- {
+        h = mws[i](h)
+    }
+    return h
+}
+func Logger(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        start := time.Now()
+        rw    := &responseWriter{ResponseWriter: w, status: 200}
+        next.ServeHTTP(rw, r)
+        slog.Info("request",
+            "method", r.Method, "path", r.URL.Path,
+            "status", rw.status, "dur_ms", time.Since(start).Milliseconds())
+    })
+}
+func RequireAuth(secret string) func(http.Handler) http.Handler {
+    return func(next http.Handler) http.Handler {
+        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+            token := r.Header.Get("Authorization")
+            if token != "Bearer "+secret {
+                http.Error(w, "Unauthorized", http.StatusUnauthorized)
+                return
+            }
+            ctx := context.WithValue(r.Context(), UserKey, token)
+            next.ServeHTTP(w, r.WithContext(ctx))
+        })
+    }
+}
+    limiter := rate.NewLimiter(rate.Limit(rps), burst)
+    return func(next http.Handler) http.Handler {
+        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+            if !limiter.Allow() {
+                http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
+                return
+            }
+            next.ServeHTTP(w, r)
+        })
+    }
+}
+```
+
+3. **3 Python — Dataclass with Validators**
+
+The `@dataclass` below uses `__post_init__` for validation. **All monetary fields** are stored as *integer*
+
+*cents* to avoid ***floating-point rounding errors***. The `from_dict` classmethod handles **snake_case** ↔
+
+**camelCase** conversion transparently.
+
+```python
+# Python 3.12 — validated order dataclass
+from __future__ import annotations
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from decimal import Decimal
+from typing import ClassVar
+@dataclass
+class OrderLine:
+    sku:        str
+    quantity:   int
+    unit_price_cents: int       # ALWAYS store money as integer cents
+    discount_bps: int = 0       # basis points: 100 bps = 1%
+    TAX_RATE: ClassVar[Decimal] = Decimal("0.15")
+    def __post_init__(self):
+        if self.quantity <= 0:
+            raise ValueError(f"quantity must be positive, got {self.quantity}")
+        if self.unit_price_cents < 0:
+            raise ValueError("unit_price_cents cannot be negative")
+        if not (0 <= self.discount_bps <= 10_000):
+            raise ValueError(f"discount_bps {self.discount_bps} out of range [0, 10000]")
+    @property
+    def subtotal_cents(self) -> int:
+        gross = self.quantity * self.unit_price_cents
+        return int(gross * (10_000 - self.discount_bps) / 10_000)
+    @property
+    def tax_cents(self) -> int:
+        return int(self.subtotal_cents * self.TAX_RATE)
+    @property
+    def total_cents(self) -> int:
+        return self.subtotal_cents + self.tax_cents
+    @classmethod
+    def from_dict(cls, data: dict) -> "OrderLine":
+        return cls(
+            sku=data["sku"],
+            quantity=data["quantity"],
+            unit_price_cents=data.get("unitPriceCents", data.get("unit_price_cents")),
+            discount_bps=data.get("discountBps", data.get("discount_bps", 0)),
+        )
+```
+
+4. **Tables with Inline Formatting**
+
+*Every table cell* below contains at least one formatted span. Header cells are always **bold white on dark**.
+
+Body cells mix *italic descriptions*, **bold verdicts**, and ***bold-italic critical values***. Some tables have
+
+**group-separator rows** spanning all columns.
+
+4. **1 Error Code Reference**
+
+| Code | Name | HTTP | Retryable? | Description |
+| --- | --- | --- | --- | --- |
+| ERR_001 | ValidationError | 400 | No | Request body failed schema validation; fix the payload |
+| ERR_002 | AuthenticationRequired | 401 | No | Missing or malformed Bearer token |
+| ERR_003 | Forbidden | 403 | No | Token valid but lacks required scope: write:orders |
+| ERR_004 | NotFound | 404 | Maybe | Resource does not exist or was soft-deleted |
+| ERR_005 | Conflict | 409 | No | Idempotency key already used with a different payload |
+| ERR_006 | RateLimited | 429 | Yes | Back off exponentially; check Retry-After header |
+| ERR_007 | InternalError | 500 | Yes | Transient server fault; retry with jitter after 1s |
+| ERR_008 | ServiceUnavailable | 503 | Yes | Upstream dependency down; retry after Retry-After seconds |
+| ERR_009 | GatewayTimeout | 504 | Yes | Upstream timed out; reduce payload size or retry |
+
+Table 1 — Error codes. **Bold-italic** in *Retryable* column = ***strongly recommended to retry***.
+
+4. **2 Migration Risk Matrix**
+
+Each migration step is rated by **risk** (High/Med/Low) and *reversibility*. Steps marked ***IRREVERSIBLE***
+
+require a **manual backup verification** before execution.
+
+| Step | Operation | Risk | Reversible? | Owner | Duration |
+| --- | --- | --- | --- | --- | --- |
+| M-01 | Add nullable column user_tier | Low | Yes | Backend team | < 1s |
+| M-02 | Backfill user_tier from subscriptions table | Medium | Yes (re-run) | Backend team | ~8 min |
+| M-03 | Add NOT NULL constraint to user_tier | Medium | Yes | DBA | ~30s |
+| M-04 | DROP COLUMN legacy_plan | HIGH | IRREVERSIBLE | DBA + Lead | ~2s |
+| M-05 | Create partial index on active users | Low | Yes | DBA | ~45s |
+| M-06 | DROP TABLE legacy_sessions | HIGH | IRREVERSIBLE | DBA + Lead + PM | ~1s |
+
+Table 2 — Migration risk matrix. ***IRREVERSIBLE*** steps require dual sign-off.
+
+5. **Callout Blocks**
+
+The three callout types below — **Note**, **Warning**, and **Tip** — each contain *dense inline formatting*.
+
+Converters must preserve the formatting **inside the callout** and also correctly identify the ***callout type***
+
+from surrounding cues.
+
+| NOTE: The DATABASE_URL environment variable must follow the format scheme://user:pass@host:port/dbname. The scheme must be postgresql (not postgres) when using asyncpg. Omitting the port defaults to 5432; for non-standard ports the value must be explicit. |
+| --- |
+|  |
+| WARNING: Never commit secrets to version control. Even in private repositories, secrets committed to Git history are effectively public because forks, CI logs, and third-party integrations may expose them. Use git-secrets, trufflehog, or pre-commit hooks to block commits before they happen. |
+|  |
+| TIP: When debugging intermittent test failures, add --reruns 3 --reruns-delay 1 to your pytest invocation. Flaky tests that fail less than 30% of the time are usually caused by timing dependencies or shared mutable state — not logic errors. Fix the root cause, not the symptom. |
+
+5. **1 Compound callout — multi-sentence**
+
+**NOTE:** This is the first sentence of a *multi-sentence* note. The second sentence has **bold text** and *italic text*
+
+***interleaved***. The third sentence references `inline_code_here()` alongside **bold prose**. The fourth sentence
+
+ends with a ***critical term*** that the converter must not flatten to plain text. Fifth sentence: plain. **Sixth: bold only.**
+
+*Seventh: italic only. **Eighth: bold-italic only.***
+
+6. **More Checklists — Dense Formatting**
+
+6. **1 API Contract Review**
+
+- [x] **OpenAPI 3.1** spec passes *spectral lint* with **zero errors**
+
+- [x] All endpoints have **operationId**; no *auto-generated* IDs present
+
+- [ ] Request bodies: **required fields** are marked *required: true*
+
+- [ ] **Nullable** fields use *oneOf: [type, null]* — **not** just *nullable: true*
+
+- [x] All **4xx responses** documented with *example payloads*
+
+- [ ] **Pagination** scheme consistent: *cursor-based* on all list endpoints
+
+- [ ] **next_cursor** is *opaque string*; **clients must not** parse it
+
+- [ ] **page_size** defaults to *20*; max is **200** — documented
+
+- [x] **Breaking change** policy documented: ***minimum 6-month deprecation***
+
+- [ ] Webhook payloads versioned with **X-Webhook-Version** header
+
+- [ ] Consumers can *opt-in* to **v2 payload schema** via dashboard
+
+6. **2 Data Privacy & GDPR Checklist**
+
+- [x] **Data inventory** complete: all PII fields catalogued in *data map*
+
+- [x] **Lawful basis** recorded for every processing activity — *not just consent*
+
+- [ ] **Right to erasure**: `DELETE /api/v2/users/{id}` removes ***all*** PII within *30 days*
+
+- [ ] **Soft-deleted** records purged from *all backups* after **90 days**
+
+- [ ] **Data minimisation**: only fields *strictly necessary* are collected
+
+- [x] **Consent** granular: separate toggles for *marketing*, *analytics*, **third-party sharing**
+
+- [ ] Consent **withdrawal** is as *easy* as consent **grant**
+
+- [ ] **DPA** signed with *all* sub-processors; list published at **/legal/subprocessors**
+
+- [ ] **Breach notification** procedure: regulator notified within ***72 hours***
+
+- [x] **DPO** appointed; contact: *dpo@example.com*
+
+7. **Typography Edge Cases**
+
+7. **1 Formatting at Sentence Boundaries**
+
+This sentence ends in **bold.** The next starts plain. This sentence ends in *italic.* The next starts plain. This
+
+one ends ***bold-italic.*** Plain resumes. **This entire sentence is bold.** Plain. *This entire sentence is italic.*
+
+Plain. ***This entire sentence is bold-italic.*** Done.
+
+7. **2 Formatting and Punctuation Interaction**
+
+Comma after bold: **important**, then plain. Period inside bold: **stop here.** New sentence. Question after
+
+italic: *is this right?* Yes. Exclamation in bold-italic: ***absolutely critical!*** Colon after italic: *see below*: next
+
+thing. Semicolon ending bold: **first clause**; second clause. Em dash interrupting italic: *this thought* —
+
+interrupted — *continues*. Parentheses: (**bold inside**) and (*italic inside*) and (***bold-italic inside***) and (plain
+
+inside).
+
+7. **3 Numbers and Code Mixed with Formatting**
+
+The value **42** is the answer. The ratio is *3.14159*. Version **v2.11.4** introduces *breaking changes*. Set
+
+timeout to **30_000** ms (*30 seconds*). Use flag `--max-retries=5` with `--backoff=exponential`. The `O(n`
+
+`log n)` algorithm is **significantly faster** than the *naive* `O(n``2``)` approach for inputs larger than **10****4**
+
+elements.
+
+7. **4 Repeated Formatting Toggles**
+
+**one* two *three* four *five* six *seven* eight *nine* ten* — ten alternating spans in a single sentence. Now
+
+bold-italic alternating with plain: ***A*** B ***C*** D ***E*** F ***G*** H ***I*** J ***K.***
+
+7. **5 Deeply Nested Heading Structure**
+
+7. **5.1* Sub-sub-section with mixed heading numbering.* The content of this pseudo-sub-section is a single
+
+paragraph with **bold terms** and *italic definitions*: **Idempotency** — *the property that an operation can be*
+
+*applied multiple times without changing the result beyond the first application. *Commutativity** — *the*
+
+*property that the order of operations does not affect the final result. *Associativity** — *the property that*
+
+*grouping does not matter.*
+
+8. **Final Gauntlet**
+
+8. **1 Feature Flag Configuration Table**
+
+The table below describes **active feature flags**. Each row contains *flag metadata* and a **rollout status**.
+
+The ***Kill Switch*** column indicates whether the flag can be *disabled instantly* in production without a deploy.
+
+| Flag Name | Owner | Rollout | Kill Switch | Expires | Notes |
+| --- | --- | --- | --- | --- | --- |
+| new-checkout-v3 | Payments | 25% | Yes | 2025-09-01 | A/B against v2; watch conversion rate |
+| async-notifications | Platform | 100% | Yes | Permanent | Stable; candidate for flag removal |
+| ml-price-model | Data Science | 5% | Yes — P0 | 2025-07-15 | Monitor p99 latency; abort if >500ms |
+| legacy-search | Search team | 0% | N/A | Deprecated | Remove in v4.0 — no active users |
+| bulk-export-v2 | Data | 50% | Yes | 2025-08-01 | Chunked streaming; reduces memory by 60% |
+| webauthn-login | Auth | Beta only | Yes — P0 | 2025-12-01 | Security feature; full audit required |
+
+Table 3 — Feature flag registry. ***P0 kill switches*** must be tested monthly.
+
+8. **2 Final Converter Validation Checklist**
+
+Run through this checklist **after every converter update**. A passing build requires ***all items checked***.
+
+- [ ] **Headings H1–H3** rendered with correct *Markdown level markers*
+
+- [ ] Inline **bold spans** use ****double asterisk**** syntax
+
+- [ ] Inline *italic spans* use **single asterisk** or *_underscore_*
+
+- [ ] ***Bold-italic*** uses ******triple****** or ****_mixed_**** syntax
+
+- [ ] Spans **do not bleed** across sentence boundaries
+
+- [ ] Mid-word spans preserved: un**expect**ed → un**expect**ed
+
+- [ ] Adjacent spans: **bold***italic* → **bold***italic* (no merge)
+
+- [ ] **Checklist items** render as GFM *task list* syntax
+
+- [ ] **Checked** items: *[x]* prefix
+
+- [ ] **Unchecked** items: *[ ]* prefix
+
+- [ ] **Rich labels** preserve formatting *after* the checkbox marker
+
+- [ ] Fenced code blocks use **triple backtick** with *language hint*
+
+- [ ] Inline code uses **single backtick**; ***no bold/italic inside***
+
+- [ ] All **4 tables** converted; column count *exact match*
+
+- [ ] Table **header row** uses *pipe-and-dash* separator line
+
+- [ ] Cells with **bold/italic** markup preserved *inside* table pipes
+
+- [ ] Callout blocks represented as **blockquote** or *admonition*
+
+- [ ] **NOTE / WARNING / TIP** prefix *retained* in output
+
+- [ ] Special chars **&**, **<**, **>* unescaped correctly*
+
+- [ ] No **content loss** across *page breaks*
+
+- [ ] ***Zero phantom bold/italic*** spans in output not present in source
+
+*End of stress-test document v2. **All content is synthetic.** Generated with ReportLab. **Good luck to your converter.***
