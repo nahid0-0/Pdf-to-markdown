@@ -101,15 +101,12 @@ If the key is missing or `google-generativeai` is not installed, the polish step
 
 ## How it works
 
-### System flow
-
-<p align="center"><img src="diagrams/pdf_to_md_system_flow.svg" width="480" alt="System flow diagram" /></p>
+<table><tr>
+<td align="center" width="50%"><strong>System flow</strong><br/><br/><img src="diagrams/pdf_to_md_system_flow.svg" width="340" alt="System flow diagram" /></td>
+<td align="center" width="50%"><strong>Library map</strong><br/><br/><img src="diagrams/pdf_to_md_library_map.svg" width="340" alt="Library map" /></td>
+</tr></table>
 
 The converter processes each page independently, then merges everything into a single Markdown file.
-
-### Library map
-
-<p align="center"><img src="diagrams/pdf_to_md_library_map.svg" width="480" alt="Library map" /></p>
 
 ### Page routing
 
