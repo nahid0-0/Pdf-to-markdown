@@ -124,7 +124,6 @@ interface Entity {
   findAll(filter?: Partial<T>): Promise<T[]>;
   save(entity: Omit<T, keyof Entity>): Promise<T>;
   delete(id: string): Promise<boolean>;
-}
 class InMemoryRepository<T extends Entity> implements Repository<T> {
   private store = new Map<string, T>();
   async findById(id: string): Promise<T | null> {
@@ -136,7 +135,6 @@ class InMemoryRepository<T extends Entity> implements Repository<T> {
     return all.filter(item =>
       Object.entries(filter).every(([k, v]) => (item as any)[k] === v)
     );
-  }
   async save(data: Omit<T, keyof Entity>): Promise<T> {
     const entity = {
       ...data,
@@ -146,11 +144,8 @@ class InMemoryRepository<T extends Entity> implements Repository<T> {
     } as T;
     this.store.set(entity.id, entity);
     return entity;
-  }
   async delete(id: string): Promise<boolean> {
     return this.store.delete(id);
-  }
-}
 ```
 
 2. **3 SQL – Complex Analytical Query**
@@ -174,9 +169,7 @@ WITH monthly_orders AS (
     FROM monthly_orders
     WHERE order_month = cohort_month
     GROUP BY 1
-),
 retention AS (
-    SELECT
         mo.cohort_month,
         EXTRACT(MONTH FROM AGE(mo.order_month, mo.cohort_month)) AS months_since_join,
         COUNT(DISTINCT mo.user_id)  AS active_users,
@@ -390,7 +383,6 @@ services:
         failure_action: rollback
   db:
     image: postgres:16-alpine
-    environment:
       POSTGRES_PASSWORD: "${DB_PASS}"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]

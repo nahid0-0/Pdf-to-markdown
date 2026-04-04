@@ -406,19 +406,264 @@ def process_blocks(fitz_page, table_bboxes, rendered_tables, table_map, body_siz
 
     return md_lines, last_table_col_count, first_table_was_continuation
 
+def ocr_cleanup(text):
+    """Rule-based cleanup for OCR-extracted text. Fixes common OCR artifacts,
+    normalizes checkboxes, detects headings, and merges broken lines."""
+    lines = text.split("\n")
+    cleaned_lines = []
+    
+    for line in lines:
+        # --- Checkbox normalization ---
+        # Checked patterns: [V], [VY], [J], [A], [Z|], [¥), [√], [x], [X]
+        line = re.sub(r'\[(?:V|VY|J|A|Z\|?|¥\)?|√|x|X)\]', '[x]', line)
+        line = re.sub(r'\[(?:V|VY|J|A|Z\|?|¥\)?|√|x|X)\)', '[x]', line)
+        # Unchecked patterns: [_], [], [ ], C], (_]
+        line = re.sub(r'(?:\[[ _]?\]|C\]|\(_?\])', '[ ]', line)
+        
+        # Format checkbox lines as task list items
+        if re.match(r'^\s*\[[ x]\]\s', line):
+            line = re.sub(r'^\s*(\[[ x]\])', r'- \1', line)
+        
+        # --- Heading detection ---
+        # Lines like "1. Checklists & Task Tracking" or "2.1 Python — Async HTTP Client"
+        # Short-ish lines with section numbering pattern → headings
+        heading_match = re.match(r'^(\d+\.)\s+(.+)$', line.strip())
+        if heading_match and len(line.strip()) < 80:
+            rest = heading_match.group(2)
+            # Don't make it a heading if it looks like a checklist or code
+            if not re.match(r'\[[ x]\]', rest) and not rest.startswith(('#', '`', '-')):
+                line = f"## {line.strip()}"
+        
+        # Subsection headings: "1.1 Pre-flight Checklist"
+        sub_match = re.match(r'^(\d+\.\d+)\s+(.+)$', line.strip())
+        if sub_match and len(line.strip()) < 80 and not line.startswith('#'):
+            rest = sub_match.group(2)
+            if not re.match(r'\[[ x]\]', rest):
+                line = f"### {line.strip()}"
+        
+        # --- Common OCR noise fixes ---
+        line = line.replace('_name_', '__name__')
+        line = line.replace('_main_', '__main__')
+        line = re.sub(r'\{k,\s*v\]\)', '([k, v])', line)
+        
+        cleaned_lines.append(line)
+    
+    # --- Merge broken lines within paragraphs ---
+    merged = []
+    for line in cleaned_lines:
+        stripped = line.strip()
+        if not stripped:
+            merged.append("")
+            continue
+        
+        # Don't merge headings, list items, code-like lines, or checkbox items
+        is_structural = (
+            stripped.startswith('#') or 
+            stripped.startswith('- [') or
+            stripped.startswith('```') or
+            re.match(r'^\d+\.', stripped) or
+            re.match(r'^(def |class |import |from |async |if |for |while |return |#|//|--|SELECT|FROM|JOIN|WHERE|GROUP|ORDER)', stripped)
+        )
+        
+        if merged and merged[-1] and not is_structural:
+            prev = merged[-1].rstrip()
+            # If previous line doesn't end with sentence terminator or heading marker,
+            # merge with current line
+            if prev and not prev.endswith(('.', '!', '?', ':', ';', ')', '}', ']', '```', '#')) and not prev.startswith('#'):
+                merged[-1] = prev + " " + stripped
+                continue
+        
+        merged.append(line)
+    
+    return "\n".join(merged)
+
 def ocr_page(fitz_page):
-    """OCR a page that has no extractable text (scanned/image-based).
-    Returns markdown lines as plain paragraphs."""
+    """OCR a page with image preprocessing and layout-aware table detection.
+    Uses word bounding boxes to reconstruct tables as proper markdown."""
+    from PIL import ImageEnhance
+    
     pix = fitz_page.get_pixmap(dpi=300)
     img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-    ocr_text = pytesseract.image_to_string(img)
     
-    md_lines = []
-    for para in ocr_text.strip().split("\n\n"):
-        cleaned = para.strip()
-        if cleaned:
-            md_lines.append(cleaned)
-    return md_lines
+    # Preprocess: grayscale + high contrast + binarize for cleaner OCR
+    img_processed = img.convert("L")
+    img_processed = ImageEnhance.Contrast(img_processed).enhance(2.0)
+    img_processed = img_processed.point(lambda x: 0 if x < 140 else 255)
+    
+    # Get word-level data with bounding boxes
+    data = pytesseract.image_to_data(img_processed, output_type=pytesseract.Output.DICT)
+    n = len(data["text"])
+    
+    # Build list of words with positions
+    words = []
+    for i in range(n):
+        txt = data["text"][i].strip()
+        if txt:
+            words.append({
+                "text": txt,
+                "left": data["left"][i],
+                "top": data["top"][i],
+                "width": data["width"][i],
+                "height": data["height"][i],
+                "right": data["left"][i] + data["width"][i],
+            })
+    
+    if not words:
+        return []
+    
+    # Group words into rows by Y position (within 15px = same row)
+    words.sort(key=lambda w: (w["top"], w["left"]))
+    rows = []
+    current_row = [words[0]]
+    for w in words[1:]:
+        if abs(w["top"] - current_row[0]["top"]) < 15:
+            current_row.append(w)
+        else:
+            current_row.sort(key=lambda w: w["left"])
+            rows.append(current_row)
+            current_row = [w]
+    if current_row:
+        current_row.sort(key=lambda w: w["left"])
+        rows.append(current_row)
+    
+    # Detect table regions: look for consecutive rows with similar column structure
+    # A table is detected when rows have large gaps between word clusters (columns)
+    # Regular prose has small, even gaps; tables have big jumps between columns
+    
+    def get_column_clusters(row, min_gap=100):
+        """Group words into clusters separated by large horizontal gaps.
+        Returns cluster boundaries (start X positions)."""
+        if len(row) < 2:
+            return []
+        sorted_words = sorted(row, key=lambda w: w["left"])
+        clusters = [[sorted_words[0]]]
+        for w in sorted_words[1:]:
+            prev_right = max(pw["right"] for pw in clusters[-1])
+            if w["left"] - prev_right > min_gap:
+                clusters.append([w])
+            else:
+                clusters[-1].append(w)
+        return clusters
+    
+    def is_table_row(row, min_columns=3, min_gap=100):
+        """A row looks like a table row if it has 3+ clusters separated by big gaps."""
+        clusters = get_column_clusters(row, min_gap)
+        return len(clusters) >= min_columns
+    
+    def clusters_aligned(clusters1, clusters2, threshold=80):
+        """Check if two sets of column clusters start at similar X positions."""
+        if abs(len(clusters1) - len(clusters2)) > 1:
+            return False
+        starts1 = [min(w["left"] for w in c) for c in clusters1]
+        starts2 = [min(w["left"] for w in c) for c in clusters2]
+        matches = 0
+        for s in starts1:
+            if any(abs(s - t) < threshold for t in starts2):
+                matches += 1
+        return matches >= min(len(starts1), len(starts2)) * 0.6
+    
+    # Identify table row ranges
+    table_ranges = []
+    i = 0
+    while i < len(rows):
+        if is_table_row(rows[i]):
+            start = i
+            ref_clusters = get_column_clusters(rows[i])
+            j = i + 1
+            while j < len(rows):
+                if is_table_row(rows[j]):
+                    j_clusters = get_column_clusters(rows[j])
+                    if clusters_aligned(ref_clusters, j_clusters):
+                        j += 1
+                        continue
+                break
+            if j - start >= 3:  # require at least header + 2 data rows for confidence
+                table_ranges.append((start, j))
+                i = j
+                continue
+        i += 1
+    
+    # Build output: tables as markdown, everything else as text (in document order)
+    table_row_set = set()
+    for start, end in table_ranges:
+        for r in range(start, end):
+            table_row_set.add(r)
+    
+    def build_table_md(start, end):
+        """Build a markdown table from rows[start:end] using cluster-based columns."""
+        # Get column boundaries from clusters across all rows
+        all_clusters = []
+        for r in range(start, end):
+            all_clusters.append(get_column_clusters(rows[r]))
+        
+        # Find the row with the most clusters to define column count
+        max_cols = max(len(c) for c in all_clusters)
+        
+        # Use the row with max clusters as reference for column boundaries
+        ref_row = None
+        for c in all_clusters:
+            if len(c) == max_cols:
+                ref_row = c
+                break
+        col_starts = [min(w["left"] for w in cluster) for cluster in ref_row]
+        
+        def assign_words_to_cols(row_words, boundaries):
+            cols = [""] * len(boundaries)
+            for w in row_words:
+                best_col = 0
+                best_dist = abs(w["left"] - boundaries[0])
+                for c, b in enumerate(boundaries):
+                    dist = abs(w["left"] - b)
+                    if dist < best_dist:
+                        best_dist = dist
+                        best_col = c
+                if cols[best_col]:
+                    cols[best_col] += " " + w["text"]
+                else:
+                    cols[best_col] = w["text"]
+            return cols
+        
+        table_lines = []
+        for idx, r in enumerate(range(start, end)):
+            cols = assign_words_to_cols(rows[r], col_starts)
+            row_str = "| " + " | ".join(c if c else "" for c in cols) + " |"
+            table_lines.append(row_str)
+            if idx == 0:
+                table_lines.append("| " + " | ".join("---" for _ in cols) + " |")
+        return "\n".join(table_lines)
+    
+    ordered_output = []
+    text_buffer = []
+    
+    for i, row in enumerate(rows):
+        if i in table_row_set:
+            # Flush text buffer first
+            if text_buffer:
+                raw = "\n".join(text_buffer)
+                cleaned = ocr_cleanup(raw)
+                for para in cleaned.strip().split("\n\n"):
+                    p = para.strip()
+                    if p:
+                        ordered_output.append(p)
+                text_buffer = []
+            
+            # If this is the start of a table range, build it
+            for start, end in table_ranges:
+                if i == start:
+                    ordered_output.append(build_table_md(start, end))
+        else:
+            line = " ".join(w["text"] for w in row)
+            text_buffer.append(line)
+    
+    if text_buffer:
+        raw = "\n".join(text_buffer)
+        cleaned = ocr_cleanup(raw)
+        for para in cleaned.strip().split("\n\n"):
+            p = para.strip()
+            if p:
+                ordered_output.append(p)
+    
+    return ordered_output
 
 def llm_polish(markdown_text):
     """Optional LLM pass to clean up markdown formatting.
@@ -439,22 +684,28 @@ def llm_polish(markdown_text):
     model = genai.GenerativeModel("gemini-2.5-flash")
     
     prompt = (
-        "You are a markdown formatting fixer. Clean up this markdown that was extracted from a PDF.\n"
-        "Fix ONLY formatting issues:\n"
-        "- Merge sentences that were broken across lines (e.g. 'The quick\n\nbrown fox' → 'The quick brown fox')\n"
-        "- Remove stray/orphaned markdown markers (* or ** with no matching pair)\n"
-        "- Fix any obvious OCR artifacts in the text\n"
-        "- Normalize spacing around markdown elements\n\n"
+        "You are a markdown formatting expert. This text was extracted from a scanned PDF using OCR.\n"
+        "Your job is to clean it into proper, well-structured markdown.\n\n"
+        "CRITICAL TASKS:\n"
+        "1. TABLES: OCR often scatters table columns across separate lines. "
+        "Reconstruct them into proper markdown tables with | pipes and --- separators. "
+        "Look for patterns where column headers appear on one line and values appear on subsequent lines — "
+        "these are table rows that need to be reassembled.\n"
+        "2. CODE BLOCKS: Wrap code in fenced ``` blocks with the correct language hint. "
+        "Fix indentation that OCR flattened.\n"
+        "3. BROKEN LINES: Merge sentences that were split across lines.\n"
+        "4. OCR NOISE: Fix obvious OCR misreads (e.g. 'PATC\\n4' → 'PATCH', 'DELE , :\\nTE' → 'DELETE').\n"
+        "5. CHECKLISTS: Ensure all checkbox items use '- [x]' or '- [ ]' syntax.\n\n"
         "Do NOT:\n"
-        "- Change any content, meaning, or structure\n"
-        "- Add new headings, sections, or content\n"
-        "- Remove any tables, code blocks, checklists, or lists\n"
-        "- Wrap the output in markdown code fences\n\n"
-        "Return ONLY the cleaned markdown, nothing else:\n\n"
+        "- Change the actual content or meaning\n"
+        "- Add new content that wasn't in the original\n"
+        "- Remove any sections\n"
+        "- Wrap the entire output in a code fence\n\n"
+        "Return ONLY the cleaned markdown:\n\n"
     )
     
-    # Chunk large documents to stay within token limits
-    max_chunk = 8000
+    # Chunk large documents — use bigger chunks to avoid splitting tables
+    max_chunk = 15000
     if len(markdown_text) <= max_chunk:
         try:
             response = model.generate_content(prompt + markdown_text)
@@ -533,6 +784,15 @@ def convert(pdf_path, output_path, polish=False):
             
             # Track if a table at the bottom might continue on the next page
             pending_table_cols = last_table_cols
+
+    # Deduplicate repeated blocks (common in OCR output)
+    seen = set()
+    deduped = []
+    for line in all_md_lines:
+        if line not in seen:
+            seen.add(line)
+            deduped.append(line)
+    all_md_lines = deduped
 
     # Post-process: merge consecutive inline-code lines into fenced code blocks
     all_md_lines = merge_code_blocks(all_md_lines)

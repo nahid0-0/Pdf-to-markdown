@@ -181,9 +181,7 @@ impl<T: Send + 'static> TaskQueue<T> {
     pub async fn push(&self, task: T) -> Result<(), mpsc::error::SendError<T>> {
         let _permit = self.semaphore.acquire().await.unwrap(); // CRITICAL: hold permit
         self.tx.send(task).await
-    }
     pub fn capacity(&self) -> usize { self.workers }
-}
 /// Spawn N worker tasks that drain the queue.
 pub async fn spawn_workers<T, F, Fut>(mut rx: mpsc::Receiver<T>, n: usize, f: F)
 where
@@ -196,9 +194,7 @@ where
     while let Some(task) = rx.recv().await {
         let f = Arc::clone(&f);
         handles.push(tokio::spawn(async move { f(task).await }));
-    }
     for h in handles { let _ = h.await; }
-}
 ```
 
 3. **2 Go — HTTP Middleware Chain**
@@ -225,9 +221,7 @@ const UserKey ctxKey = "user"
 func Chain(h http.Handler, mws ...func(http.Handler) http.Handler) http.Handler {
     for i := len(mws) - 1; i >= 0; i-- {
         h = mws[i](h)
-    }
     return h
-}
 func Logger(next http.Handler) http.Handler {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
         start := time.Now()
@@ -237,7 +231,6 @@ func Logger(next http.Handler) http.Handler {
             "method", r.Method, "path", r.URL.Path,
             "status", rw.status, "dur_ms", time.Since(start).Milliseconds())
     })
-}
 func RequireAuth(secret string) func(http.Handler) http.Handler {
     return func(next http.Handler) http.Handler {
         return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -249,19 +242,10 @@ func RequireAuth(secret string) func(http.Handler) http.Handler {
             ctx := context.WithValue(r.Context(), UserKey, token)
             next.ServeHTTP(w, r.WithContext(ctx))
         })
-    }
-}
     limiter := rate.NewLimiter(rate.Limit(rps), burst)
-    return func(next http.Handler) http.Handler {
-        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
             if !limiter.Allow() {
                 http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
-                return
-            }
             next.ServeHTTP(w, r)
-        })
-    }
-}
 ```
 
 3. **3 Python — Dataclass with Validators**
@@ -297,10 +281,8 @@ class OrderLine:
     def subtotal_cents(self) -> int:
         gross = self.quantity * self.unit_price_cents
         return int(gross * (10_000 - self.discount_bps) / 10_000)
-    @property
     def tax_cents(self) -> int:
         return int(self.subtotal_cents * self.TAX_RATE)
-    @property
     def total_cents(self) -> int:
         return self.subtotal_cents + self.tax_cents
     @classmethod
