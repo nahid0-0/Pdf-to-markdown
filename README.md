@@ -1,7 +1,6 @@
-# Pdf-to-markdown
 # pdf-to-markdown
 
-A command-line tool that converts PDF files to clean, structured Markdown. Handles both native text PDFs and scanned image PDFs via OCR fallback. Supports tables, headings, bold/italic/monospace formatting, checkboxes, code blocks, and cross-page table continuation.
+Converts PDF files to clean, structured Markdown from the command line. Handles both native text PDFs and scanned image PDFs via OCR fallback. Supports tables, headings, bold/italic/monospace formatting, checkboxes, code blocks, and cross-page table continuation.
 
 ---
 
@@ -13,21 +12,21 @@ A command-line tool that converts PDF files to clean, structured Markdown. Handl
 - [How it works](#how-it-works)
 - [Configuration](#configuration)
 - [Limitations](#limitations)
+- [Samples](#samples)
 
 ---
 
 ## Requirements
 
-- Python 3.9+
-- Tesseract OCR binary installed on your system
-- The following Python packages:
-  - `pymupdf` (imported as `fitz`)
-  - `pdfplumber`
-  - `pytesseract`
-  - `Pillow`
-- Optional, for LLM polish:
-  - `google-generativeai`
-  - A valid `GEMINI_API_KEY` environment variable
+| Requirement | Notes |
+|---|---|
+| Python 3.9+ | |
+| Tesseract OCR binary | Must be installed separately and available on `PATH` |
+| `pymupdf` | Imported as `fitz` |
+| `pdfplumber` | Used for table detection on text PDFs |
+| `pytesseract` | Python wrapper for Tesseract |
+| `Pillow` | Image preprocessing before OCR |
+| `google-generativeai` | Optional — only needed for `--polish` |
 
 ### Install Tesseract
 
@@ -59,7 +58,7 @@ For LLM polish support:
 pip install google-generativeai
 ```
 
-No package setup or virtual environment is strictly required, though one is recommended.
+No package setup or virtual environment is required, though one is recommended.
 
 ---
 
@@ -79,32 +78,50 @@ Runs an additional Gemini API pass to fix OCR artifacts, broken tables, and form
 python app.py input.pdf output.md --polish
 ```
 
-Requires `GEMINI_API_KEY` to be set:
+This requires a `GEMINI_API_KEY` environment variable to be set. How you set it depends on your OS:
 
+**macOS / Linux**
 ```
 export GEMINI_API_KEY=your_key_here
-python app.py input.pdf output.md --polish
 ```
 
-If the key is missing, the polish step is silently skipped and the raw conversion output is written instead.
+**Windows (Command Prompt)**
+```
+set GEMINI_API_KEY=your_key_here
+```
+
+**Windows (PowerShell)**
+```
+$env:GEMINI_API_KEY = "your_key_here"
+```
+
+If the key is missing or `google-generativeai` is not installed, the polish step is skipped with a warning and the raw conversion output is written instead.
 
 ---
 
 ## How it works
 
-The converter processes each page of the PDF independently, then merges results into a single Markdown file.
+### System flow
+
+![System flow diagram](diagrams/pdf_to_md_system_flow.svg)
+
+The converter processes each page independently, then merges everything into a single Markdown file.
+
+### Library map
+
+![Library map](diagrams/pdf_to_md_library_map.svg)
 
 ### Page routing
 
-For each page, the tool checks whether extractable text exists using PyMuPDF's `get_text()`. If the result is fewer than 20 characters, the page is treated as a scanned image and routed to the OCR path. Otherwise, the standard text extraction path is used.
+For each page, PyMuPDF's `get_text()` is called. If the result is fewer than 20 characters, the page is treated as a scanned image and sent to the OCR path. Otherwise the text extraction path runs.
 
 ### Text extraction path
 
-Uses PyMuPDF to read text as a structured dictionary of blocks, lines, and spans. Each span carries font metadata (size, flags, font name) used for formatting decisions.
+Uses PyMuPDF to read text as a structured dictionary of blocks, lines, and spans. Each span carries font metadata (size, flags, font name) used for all formatting decisions.
 
 **Pass 1 — orphan merging**
 
-List markers that appear on their own line (a lone `•`, `-`, or digit) are merged with the line that follows them.
+List markers that appear alone on a line (a lone `•`, `-`, digit, etc.) are merged with the line that follows them.
 
 **Pass 2 — paragraph merging and list detection**
 
@@ -112,57 +129,67 @@ Lines of similar font size are merged into paragraphs unless the current line st
 
 **Pass 3 — classification and formatting**
 
-Each merged item is classified as one of:
+Each merged item is classified as:
 
-- Heading (H1, H2, H3) based on font size relative to the median body size
-- Checkbox item, detected from vector drawings on the page
-- Numbered list item
-- Bullet list item
-- Body text
-- Footer — lines in the bottom 10% of the page with small font are silently dropped
+| Classification | Detection method |
+|---|---|
+| H1 heading | Font size >= largest font on page × 0.95 |
+| H2 heading | Font size >= body size × 1.4 |
+| H3 heading | Font size >= body size × 1.15 |
+| Checkbox item | Vector rectangle drawings detected on the page |
+| Numbered list | Line starts with `\d+[.)]` pattern |
+| Bullet list | Line starts with `•`, `-`, `‣`, `◦`, `·` |
+| Footer (dropped) | Y position > 90% of page height and small font |
+| Body text | Everything else |
 
-Tables are detected separately using pdfplumber and rendered as Markdown pipe tables. Any text block that overlaps a detected table bounding box is skipped to avoid duplication.
+Tables are detected separately via pdfplumber and rendered as Markdown pipe tables. Text blocks that overlap a detected table bounding box are skipped to avoid duplication.
 
 ### OCR path
 
 Used for scanned or image-only pages.
 
-1. The page is rendered at 300 DPI using PyMuPDF and preprocessed with Pillow (grayscale, contrast boost, binarization).
-2. Tesseract extracts word-level bounding boxes.
-3. Words are grouped into rows by vertical proximity (15px tolerance).
-4. Rows with 3+ word clusters separated by 100px+ gaps are identified as table rows.
-5. Table rows are rendered as Markdown pipe tables; remaining rows are treated as prose.
-6. `ocr_cleanup()` applies rule-based fixes: checkbox normalization, heading detection from numbered patterns, common OCR artifact correction, and broken-line merging.
+| Step | Detail |
+|---|---|
+| Render | Page rendered at 300 DPI via PyMuPDF |
+| Preprocess | Grayscale → contrast boost (2×) → binarize at threshold 140 |
+| Extract | Tesseract returns word-level bounding boxes |
+| Row grouping | Words within 15px vertically are grouped into the same row |
+| Table detection | Rows with 3+ word clusters separated by 100px+ gaps are table rows; at least 3 consecutive such rows required |
+| Table rendering | Table rows → Markdown pipe table; remaining rows → prose |
+| Cleanup | `ocr_cleanup()` applies checkbox normalization, numbered heading detection, common OCR artifact fixes, and broken-line merging |
 
 ### Post-processing
 
-Applied to all pages regardless of path:
+Applied to all pages after extraction:
 
-- **Deduplication** — repeated blocks (common with headers/footers repeated across pages) are removed using a seen-set.
-- **Code block merging** — consecutive lines that are predominantly inline code (backtick-wrapped) are collapsed into a fenced code block. Language detection is attempted from the first line.
-- **Cross-page table continuation** — if a table at the bottom of one page matches the column count of the first table on the next page, the continuation rows are merged in without repeating the header row.
+| Step | What it does |
+|---|---|
+| Deduplication | Repeated blocks (e.g. headers/footers that repeat across pages) are removed using a seen-set |
+| Code block merging | Consecutive lines that are predominantly inline code (>50% of chars in backtick spans) are collapsed into a fenced block; language is auto-detected from the first line |
+| Cross-page table continuation | If a table at the bottom of one page (past 85% of page height) matches the column count of the first table on the next page, the continuation rows are appended without repeating the header |
 
 ### LLM polish (optional)
 
-If `--polish` is passed, the full Markdown output is sent to Gemini 2.5 Flash with a prompt instructing it to fix table reconstruction, code block indentation, OCR misreads, and checkbox formatting without altering content. Large documents are chunked at ~15,000 characters on double-newline boundaries.
+When `--polish` is passed, the full Markdown output is sent to Gemini 2.5 Flash. The prompt instructs it to fix table reconstruction, code block indentation, OCR misreads, and checkbox formatting without changing content. Documents larger than 15,000 characters are split on double-newline boundaries and processed chunk by chunk.
 
 ---
 
 ## Configuration
 
-All configuration is currently hardcoded in the source. The relevant values and their defaults:
+All values are hardcoded in the source. Relevant defaults:
 
-| Parameter | Value | Location | Effect |
+| Parameter | Default | Location | Effect |
 |---|---|---|---|
 | Text threshold | 20 chars | `convert()` | Pages below this trigger OCR fallback |
 | OCR DPI | 300 | `ocr_page()` | Render resolution for scanned pages |
 | Contrast enhancement | 2.0× | `ocr_page()` | Pillow contrast boost before binarization |
 | Binarization threshold | 140 | `ocr_page()` | Pixel cutoff for black/white conversion |
 | Footer Y threshold | 90% page height | `is_footer()` | Lines below this are candidates for dropping |
-| Footer size threshold | body_size × 0.95 | `is_footer()` | Small text near the bottom is dropped |
-| Table min rows (OCR) | 3 | `ocr_page()` | Fewer rows → not classified as a table |
+| Footer size threshold | body_size × 0.95 | `is_footer()` | Small text in footer zone is dropped |
+| OCR table min rows | 3 consecutive | `ocr_page()` | Fewer matching rows → not classified as a table |
 | OCR word row gap | 15px | `ocr_page()` | Max vertical distance to be on the same row |
 | OCR column gap | 100px | `ocr_page()` | Min horizontal gap between table columns |
+| Cross-page table threshold | 85% page height | `process_blocks()` | A table must reach this Y position to be eligible for continuation |
 | LLM chunk size | 15,000 chars | `llm_polish()` | Max characters per Gemini API call |
 | Gemini model | `gemini-2.5-flash` | `llm_polish()` | Model used for the polish pass |
 
@@ -172,38 +199,67 @@ All configuration is currently hardcoded in the source. The relevant values and 
 
 ### General
 
-- **Multi-column layouts are not supported.** Text in a two-column magazine or academic paper layout will be extracted in reading order as determined by PyMuPDF, which often means columns are interleaved rather than read left-to-right per column.
+- **Multi-column layouts are not handled.** Text in a two-column layout will be extracted in the order PyMuPDF encounters it, which typically interleaves the columns.
 
-- **Figures and diagrams are ignored.** Image content embedded in the PDF (charts, photos, illustrations) is not extracted or described. Only vector drawings used for checkboxes are inspected.
+- **Figures and diagrams are ignored.** Embedded images, charts, and illustrations are not extracted or described. Only vector drawings used as checkboxes are inspected.
 
-- **Footnotes and endnotes are dropped.** The footer filter removes small text at the bottom of the page. Legitimate footnote content will be lost.
+- **Footnotes are dropped.** The footer filter discards small text near the bottom of the page. Legitimate footnote content is lost along with page numbers.
 
-- **Mathematical formulas are not rendered.** Equations may extract as a garbled sequence of characters depending on how the PDF encodes them. LaTeX or MathML output is not supported.
+- **Mathematical formulas are not rendered.** Equations may appear as garbled characters. There is no LaTeX or MathML output.
 
-- **Right-to-left text is not supported.** Arabic, Hebrew, and other RTL scripts may extract in the wrong order.
+- **Right-to-left text is not supported.** Arabic, Hebrew, and other RTL scripts will likely extract in the wrong order.
 
 ### Text extraction path
 
-- **Font detection for bold/italic is heuristic.** It relies on the font name string containing words like `bold` or `italic`, and on PDF font flags. PDFs that embed fonts under non-standard names may fail to detect formatting.
+- **Bold/italic detection is heuristic.** It relies on font names containing words like `bold` or `italic` and on PDF font flags. Non-standard font names will not be detected.
 
-- **Heading size detection is relative.** The heading thresholds (1.15×, 1.4×, 0.95× of body size) are fixed multipliers. Documents with unusual font size distributions (e.g. everything in one size) will produce no headings or too many headings.
+- **Heading size detection is relative to the document.** The thresholds (1.15×, 1.4×, 0.95× of body size) are fixed multipliers. Documents where all text is the same size will produce no headings, or too many.
 
-- **Code detection is based on font name.** A span is treated as monospace if its font name contains `mono`, `courier`, or `code`. PDFs using a custom monospace font under an unrelated name will not be detected.
+- **Code detection is based on font name.** A span is treated as monospace if its font name contains `mono`, `courier`, or `code`. Custom monospace fonts under other names are not detected.
 
-- **Cross-page table merging is based on column count only.** Two unrelated tables on successive pages with the same number of columns will be incorrectly merged.
+- **Cross-page table merging uses column count only.** Two unrelated tables on successive pages with the same column count will be incorrectly merged.
 
 ### OCR path
 
-- **OCR accuracy depends on scan quality.** Low-resolution, skewed, stained, or handwritten content will degrade output quality significantly. The 300 DPI render and binarization help but cannot compensate for poor source material.
+- **Quality depends on the source scan.** Low resolution, skew, staining, or handwriting will degrade accuracy. The preprocessing steps help but cannot fix fundamentally poor input.
 
-- **Table detection in OCR mode is approximate.** The column cluster heuristic works on horizontal word spacing. Tables with narrow columns, merged cells, or irregular spacing may be misclassified or rendered incorrectly.
+- **Table detection is approximate.** The cluster heuristic works on word spacing. Narrow columns, merged cells, or uneven spacing may cause misclassification.
 
-- **OCR does not detect bold, italic, or heading size.** All OCR-extracted text is treated as plain body text or headings detected by numbered prefix patterns only. Formatting present in the original scanned document is not recovered.
+- **Formatting is not recovered.** All OCR text is treated as plain body text or section headings detected by numbered prefixes. Bold, italic, and font sizes from the original scan are lost.
 
-- **The LLM polish pass can introduce errors.** Gemini is instructed not to change content, but hallucination is possible especially on damaged or ambiguous OCR output. Review the output for correctness when using `--polish` on critical documents.
+- **The LLM polish pass can introduce errors.** Gemini is instructed not to alter content, but hallucination is possible on damaged or ambiguous OCR output. Review the output carefully when using `--polish` on critical documents.
 
 ### Performance
 
-- **Large documents are slow.** OCR at 300 DPI is CPU-intensive. A 100-page scanned document can take several minutes. The LLM polish pass adds additional latency and API cost proportional to document length.
+- **Large scanned documents are slow.** OCR at 300 DPI is CPU-intensive. The LLM polish pass adds additional latency and API cost proportional to document length.
 
-- **Memory usage scales with page count.** All Markdown lines are accumulated in memory before writing. Very large PDFs may require significant RAM.
+- **Memory scales with document size.** All Markdown lines accumulate in memory before the file is written. Very large PDFs may require significant RAM.
+
+---
+
+## Samples
+
+The `stress_tests/` directory contains PDFs and their converted outputs used during development.
+
+### Text extraction (non-OCR)
+
+These are native text PDFs — the standard extraction path runs on them.
+
+| PDF | Output (raw) | Output (with `--polish`) |
+|---|---|---|
+| [case1.pdf](stress_tests/nonOCR/case1.pdf) | [case1.md](stress_tests/nonOCR/case1.md) | [case1_with_llm.md](stress_tests/nonOCR/case1_with_llm.md) |
+| [case2.pdf](stress_tests/nonOCR/case2.pdf) | [case2.md](stress_tests/nonOCR/case2.md) | [case2_with_llm.md](stress_tests/nonOCR/case2_with_llm.md) |
+| [case3.pdf](stress_tests/nonOCR/case3.pdf) | [case3.md](stress_tests/nonOCR/case3.md) | [case3_with_llm.md](stress_tests/nonOCR/case3_with_llm.md) |
+| [case4.pdf](stress_tests/nonOCR/case4.pdf) | [case4.md](stress_tests/nonOCR/case4.md) | [case4_with_llm.md](stress_tests/nonOCR/case4_with_llm.md) |
+| [case5.pdf](stress_tests/nonOCR/case5.pdf) | [case5.md](stress_tests/nonOCR/case5.md) | [case5_with_llm.md](stress_tests/nonOCR/case5_with_llm.md) |
+| [case6.pdf](stress_tests/nonOCR/case6.pdf) | [case6.md](stress_tests/nonOCR/case6.md) | [case6_with_llm.md](stress_tests/nonOCR/case6_with_llm.md) |
+| [converter_stress_test.pdf](stress_tests/nonOCR/converter_stress_test.pdf) | [converter_stress_test.md](stress_tests/nonOCR/converter_stress_test.md) | [converter_stress_test_with_llm.md](stress_tests/nonOCR/converter_stress_test_with_llm.md) |
+| [converter_stress_test_v2.pdf](stress_tests/nonOCR/converter_stress_test_v2.pdf) | [converter_stress_test_v2.md](stress_tests/nonOCR/converter_stress_test_v2.md) | [converter_stress_test_v2_with_llm.md](stress_tests/nonOCR/converter_stress_test_v2_with_llm.md) |
+
+### OCR path
+
+These are scanned image PDFs — pages with fewer than 20 characters of extractable text go through Tesseract.
+
+| PDF | Output (raw) | Output (with `--polish`) |
+|---|---|---|
+| [CamScanner case1.pdf](<stress_tests/OCR/CamScanner case1.pdf>) | [CamScanner case1.md](<stress_tests/OCR/CamScanner case1.md>) | [CamScanner case1_with_llm.md](<stress_tests/OCR/CamScanner case1_with_llm.md>) |
