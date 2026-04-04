@@ -116,18 +116,16 @@ For each page, PyMuPDF's `get_text()` is called. If the result is fewer than 20 
 
 Uses PyMuPDF to read text as a structured dictionary of blocks, lines, and spans. Each span carries font metadata (size, flags, font name) used for all formatting decisions.
 
-🟢 **Pass 1 — orphan merging**
-&nbsp;&nbsp;&nbsp;&nbsp;┆
-&nbsp;&nbsp;&nbsp;&nbsp;┆ List markers that appear alone on a line (a lone `•`, `-`, digit, etc.) are merged with the line that follows them.
-&nbsp;&nbsp;&nbsp;&nbsp;┆
+```mermaid
+flowchart TD
+    A(["🟢 Pass 1 — orphan merging"]):::pass --> B["Lone list markers on their own line\nare merged with the line that follows"]
+    B --> C(["🟢 Pass 2 — paragraph merging"]):::pass
+    C --> D["Lines of similar font size are joined into paragraphs\nList markers always start a new item\nCode lines are never merged"]
+    D --> E(["🟢 Pass 3 — classification & formatting"]):::pass
+    E --> F["Each item classified as heading / checkbox /\nlist / footer / body text"]
 
-🟢 **Pass 2 — paragraph merging and list detection**
-&nbsp;&nbsp;&nbsp;&nbsp;┆
-&nbsp;&nbsp;&nbsp;&nbsp;┆ Lines of similar font size are merged into paragraphs unless the current line starts with a list marker. Code lines are never merged with adjacent lines.
-&nbsp;&nbsp;&nbsp;&nbsp;┆
-
-🟢 **Pass 3 — classification and formatting**
-&nbsp;&nbsp;&nbsp;&nbsp;┆
+    classDef pass fill:#2d6a4f,color:#fff,stroke:none
+```
 
 | Classification | Detection method |
 |---|---|
