@@ -127,6 +127,12 @@ flowchart TD
     classDef pass fill:#2d6a4f,color:#fff,stroke:none
 ```
 
+**Pass 1 — orphan merging:** Lone list markers on their own line (a `•`, `-`, digit, etc.) are merged with the line that follows them.
+
+**Pass 2 — paragraph merging and list detection:** Lines of similar font size are joined into paragraphs. List markers always start a new item. Code lines are never merged with adjacent lines.
+
+**Pass 3 — classification and formatting:** Each merged item is classified as:
+
 | Classification | Detection method |
 |---|---|
 | H1 heading | Font size >= largest font on page × 0.95 |
