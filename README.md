@@ -116,32 +116,18 @@ For each page, PyMuPDF's `get_text()` is called. If the result is fewer than 20 
 
 Uses PyMuPDF to read text as a structured dictionary of blocks, lines, and spans. Each span carries font metadata (size, flags, font name) used for all formatting decisions.
 
-<table>
-<tr>
-<td valign="top" align="center" width="24">
-  <div>🔵</div>
-  <div>│</div>
-  <div>│</div>
-  <div>│</div>
-  <div>🔵</div>
-  <div>│</div>
-  <div>│</div>
-  <div>│</div>
-  <div>🔵</div>
-</td>
-<td valign="top">
-  <br/>
-  <strong>Pass 1 — orphan merging</strong><br/>
-  List markers that appear alone on a line (a lone <code>•</code>, <code>-</code>, digit, etc.) are merged with the line that follows them.
-  <br/><br/><br/>
-  <strong>Pass 2 — paragraph merging and list detection</strong><br/>
-  Lines of similar font size are merged into paragraphs unless the current line starts with a list marker. Code lines are never merged with adjacent lines.
-  <br/><br/><br/>
-  <strong>Pass 3 — classification and formatting</strong><br/>
-  Each merged item is classified as:
-</td>
-</tr>
-</table>
+🟢 **Pass 1 — orphan merging**
+&nbsp;&nbsp;&nbsp;&nbsp;┆
+&nbsp;&nbsp;&nbsp;&nbsp;┆ List markers that appear alone on a line (a lone `•`, `-`, digit, etc.) are merged with the line that follows them.
+&nbsp;&nbsp;&nbsp;&nbsp;┆
+
+🟢 **Pass 2 — paragraph merging and list detection**
+&nbsp;&nbsp;&nbsp;&nbsp;┆
+&nbsp;&nbsp;&nbsp;&nbsp;┆ Lines of similar font size are merged into paragraphs unless the current line starts with a list marker. Code lines are never merged with adjacent lines.
+&nbsp;&nbsp;&nbsp;&nbsp;┆
+
+🟢 **Pass 3 — classification and formatting**
+&nbsp;&nbsp;&nbsp;&nbsp;┆
 
 | Classification | Detection method |
 |---|---|
