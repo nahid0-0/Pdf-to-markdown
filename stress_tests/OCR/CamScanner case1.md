@@ -1,0 +1,227 @@
+PDF Markdown Converter — Ultimate Stress-Test Document This document is intentionally complex. It contains italic prose, bold headings, bold-italic combinations, nested tables, multi-column data, inline code, fenced code blocks in multiple languages, checklists (checked & unchecked), and edge-case formatting designed to break naive converters.
+Version: 3.1.4 | Author: Test Harness Bot | Status: CONFIDENTIAL DRAFT
+
+## 1. Checklists & Task Tracking
+The following lists test whether the converter correctly handles checked, unchecked, and indented checklist items. Items marked with bold labels are blocking issues; items in italic are optional.
+### 1.1 Pre-flight Checklist
+- [x] Repository cloned and branch checked out
+- [x] Virtual environment activated (Python 3.11+)
+- [x] Dependencies installed via pip install requirements.txt -r (J Environment variables set in file .env (J Database migrations applied: python migrate manage.py CJ Secrets rotated in production vault
+- [x] Linter ruff check . --select ALL passes:
+- [ ] Type-checker --strict src/ passes: mypy _] All unit tests passing: pytest -x -q [MJ] Docker image builds without warnings
+- [ ] Integration tests passing against staging DB C) Performance benchmarks within of baseline 10%
+### 1.2 Security Audit Checklist
+- [x] OWASP Top 10 reviewed and mitigated [Y) sar injection: all queries parameterised statements use (J XSS: output encoding enforced at template layer
+- [ ] CSRF tokens present all state-changing forms on
+- [x] Authentication berypt with work factor 12 uses >= (J Authorisation checks present API endpoint on every CJ Sensitive data encrypted at rest (AES-256-GCM)
+[VJ] TLS 1.2+ enforced; TLS 1.0/1.1 disabled
+- [ ] Dependency audit: known CVEs in pip-audit report no ) Rate limiting configured login and signup routes on
+- [ ] Error do not leak stack traces to clients messages
+- [x] Security headers set (CSP, HSTS, X-Frame-Options)
+- [ ] Penetration test scheduled with external vendor
+
+## 2. Code Blocks & Inline Code
+Each snippet below uses a different programming language to stress-test syntax highlighting and indentation preservation. Pay special attention to lines with mixed indentation, long lines that may wrap, and special characters such as backslashes, angle brackets, and Unicode literals.
+### 2.1 Python Async HTTP Client
+—
+# Python 3.11 | async/await + type hints
+from __future__ import annotations
+import asyncio
+import httpx
+from typing import Any BASE_URL = "https://api.example.com/v2"
+async def fetch_paginated( endpoint: str, * page_size: int = 100, headers: dict[str, str] | None = None, ) -> list[dict[str, Any]]:
+"""Fetch all pages from a paginated REST endpoint.""" results: list[dict[str, Any]] = [ ]
+params = {"limit": page_size, "offset": 0}
+async with httpx.AsyncClient(base_url=BASE_URL, timeout=30.0) as client:
+while True:
+resp = await client.get(endpoint, params=params, headers=headers or {})
+resp.raise_for_status()
+data = resp.json()
+results .extend(data["items"])
+if len(data["items"]) < page_size:
+break params{"“offset"] += page_size
+return results
+if __name___ == "__main__":
+items = asyncio.run(fetch_paginated("/products", page_size=50))
+print(f"Fetched {len(items)} items")
+### 2.2 TypeScript Generic Repository Pattern
+—
+// TypeScript 5.x interface Entity { id: string;
+createdAt: Date;
+updatedAt: Date;
+}
+interface Repository<T extends Entity> {
+
+findById¢id: string}: Promise<T | null>;
+findAll(filter?: Partial<T>): Promise<T[ ]>;
+save(entity: Omit<T, keyof Entity>): Promise<T>;
+delete({id: string): Promise<boolean>;
+class InMemoryRepository<T extends Entity> implements Repository<T> { private store = new Map<string, T>();
+async findById(id: string}: Promise<T | null> {
+return this.store.get(id) ?? null;
+}
+async findAll(filter?: Partial<T>): Promise<T[ ]> { const all = [...this.store.values()];
+if (!filter) return all;
+return all.filterCitem => Object.entries(filter).every(([k, v]) => (item as any)[k] === v)
+async save(data: Omit<T, keyof Entity>): Promise<T> { const entity = { data, ..
+id: crypto.randomUVID(), createdAt: new Date(), updatedAt: new Date(), } as T;
+this.store.set(entity.id, entity);
+return entity;
+}
+async delete{id: string}: Promise<boolean> {
+return this.store.delete(id);
+### 2.3 SQL Complex Analytical Query
+— PostgreSQL 15+: monthly revenue cohort analysis
+-- WITH monthly_orders AS (
+SELECT DATE_TRUNC( 'month', o.created_at)} AS order_month, DATE_TRUNC{ 'month', u.created_at) AS cohort_month, u.id AS user_id, SUM(oi. quantity * oi.unit_price) AS revenue
+FROM orders a
+JOIN order_items oi ON oij.order_id = o.id
+JOIN users u ON u.id = o.user_id
+WHERE o.status = ‘completed’ AND o.created_at >= '2023-01-01'
+GROUP BY 1, 2, 3 ), cohort_size AS ¢
+
+SELECT cohort_month, COGUNT(DISTINCT userid) AS size
+FROM monthly_orders
+WHERE order month = cohort_month
+GROUP BY 1 ), retention AS {
+SELECT mo. cohort_month, EXTRACT(MONTH FROM AGE(mo.crder_month, mo.cohort_month)) AS months_since_join, COUNT{DISTINCT mo.user_id) AS active_users, SUM(mo. revenue} AS total_revenue
+FROM monthiy_orders mo
+GROUP BY 1, 2 )
+SELECT r.cohort_month, r.months_since_join, cs.size AS cohort_size, r.active_users, ROUND({r,active_users * 100.0 / cs.size, 2) AS retention_pct, ROUND({r.total revenue / NULLIF(r.active_users,0), 2) AS arpu
+FROM retention r
+JOIN cohort_size cs USING (cohort_month)
+ORDER BY r.cohort_month, r.months_since_joain;
+### 2.4 Bash Deployment Script
+—
+#!/usr/bin/env bash
+set -euo pipefail IFS=$'\n\t'
+# MM Config SERS RS eee ee ee ee eee eee
+APP="my-service" REGISTRY="registry.example.com" ENV="$(1:-staging}" # staging | production REPLICAS="${2:-2}" log() { echo "[$(date -u +%FT%TZ)] $*"; }
+die() { log "ERROR: $*” >&2: exit 1; }
+[[ "SENV" =- A(staging|production)$ ]] || die "Invalid ENV: $ENV"
+# BM Build Be eee ee ee ee ee eee
+TAG="$(git rev-parse --short HEAD)" IMAGE="$REGISTRY/ $APP: $TAG" log "Building $IMAGE ..." decker build --platform linux/amd64 -t "$IMAGE”
+# MM Push BEDS ee ee ee eee eee eee
+log "Pushing to registry ..." decker push "$IMAGE"
+# BM Deploy SERRE RSE ee ee ee eee eee eee
+log "Deploying to $ENV with $REPLICAS replicas ...”
+
+kubectl set image "deployment/$APP" "$APP=$IMAGE" --namespace "$ENV" kubectl rollout status "deployment/$APP" --namespace "$ENV" --timeout=120s log "Deployment complete: $IMAGE -> $ENV"
+
+## 3. Tables
+Tables vary in column count, alignment, and content complexity. Some cells contain bold text, italic annotations, or both. The last table is intentionally wide to test overflow handling.
+### 3.1 API Endpoint Reference
+Endpoint Rate Limit Description
+
+| GET /api/v2/users | Bearer | 1000/nr | List all users |
+| --- | --- | --- | --- |
+| POST /api/v2/users | Bearer | 100/hr | Create a user |
+| GET /api/v2/users/{id} | Bearer | §000/hr | Get user by ID |
+
+PAT c fapi/v2/users/{id} Bearer 200/hr Partial update 4 DELE fapi/v2/users/{id} . . Bearer + MFA 50/hr Soft delete user TE
+
+| GET /api/v2/products | API Key | 10000/hr | Product catalogue |
+| --- | --- | --- | --- |
+| POST = /api/v2/orders | Bearer | 500/hr | Place an order |
+| GET /api/v2/orders/{id}/status | Bearer | §000/hr | Poll order status |
+| POST = /api/v2/Avebhooks | Admin only | 10/hr | Register webhook |
+| GET /health | None | Unlimited | Health check |
+
+Table 1 — REST API endpoint reference with auth and rate-limit info.
+### 3.2 Library Comparison Matrix
+Library Language Stars License OpenAPI auto-docs; excellent typing FastAPI Python 72k MIT Yes support Callbacks/Promi Mature ecosystem; minimal by Express JavaScript 63k MIT ses default Gin Go 77k MIT Goroutines Very fast; low memory overhead Axum Rust Tokio Type-safe ype-sale extractors; ext ; Zero-cos -cost 18k MIT abstractions Rails Ruby 55k MIT Limited Convention over config; full-stack Laravel PHP 77k MIT Swoole opt. Rich ORM; batteries included Spring Java 72k Apache 2 WebFiux Enterprise-grade; . verbose config .
+Boot
+
+Angular-style Dl; opinionated NestJS TypeScript 66k MIT Yes structure Table 2 Web framework comparison. Bold green = native async support.
+—
+
+### 3.3 Performance Benchmark Results
+Results below are from a 3-minute sustained load test at 2000 concurrent connections on an AWS c6i.2xlarge instance. Latency figures are in milliseconds. Lower is better.
+
+| Framework | RPS | p50 (ms} | p95 (ms} | p99 (ms} | Error% | RAM (MB) |
+| --- | --- | --- | --- | --- | --- | --- |
+| Axum (Rust) | 148,204 | 6.1 | 12.4 | 19.7 | 0.00% | 24 |
+| Gin (Go} | 132,877 | 75 | 14.1 | 22.3 | 0.00% | 31 |
+| FastAPi (Python) | 28,440 | 35.2 | 68.9 | 97.1 | 0.12% | 148 |
+| NestJS (TS) | 24,901 | 40.1 | 79.3 | 112.5 | 0.08% | 197 |
+| Spring Boot | 19,322 | 51.7 | 103.2 | 188.4 | 0.31% | 412 |
+| Rails 7 | 4,811 | 208.5 | 501.2 | 798.1 | 1.20% | 321 |
+
+Table 3 Load test results. Red figures indicate values outside SLA thresholds.
+—
+
+4, Mixed Formatting & Edge Cases
+### 4.1 Bold, Italic, and Bold-ltalic Prose
+Normal text flows into bold text and then italic text and then bofd-itafic text and back to normal. This sentence tests mid-word transitions: unexpected and semiautomatic and overloaded.
+The entire paragraph can be bold. Converters must not collapse the bold span or merge it with adjacent non-bold paragraphs. Multiple. Bold. Sentences. In. A. Row.
+An entirely italic paragraph follows. it contains a nested bold island inside italic text, which should produce boid-italic output: this is bold-italic. Then the italic continues normally.
+### 4.2 Inline Code Inside Prose
+Call the function fetch_paginated() with a page_size argument. The return type is list(dict[str, Any] ]. Do not confuse None with null; they are different types. The environment variable DATABASE URL must be set before calling migrate().
+### 4.3 Warning & Note Callout Blocks
+NOTE: The following configuration is environment-specific. Values for production must be sourced from the secrets vault, never hard-coded in repository files.
+WARNING: Running DROP TABLE user's in production is irreversibfe. Ensure you have a verified backup befare proceeding. This action will trigger a PQ incident if executed without a change-management ticket.
+### 4.4 Deeply Nested Checklist
+Below is a checklist where some items have sub-iterns (indented). Converters should preserve the indent level as nested list items.
+[/| Backend services healthy [/] API gateway responding L_] Auth service token refresh tested [/] Database connections pooled
+- [ ] Read replicas reachable L_] Write throughput within limits _] Frontend assets deployed [1] CDN cache invalidated L] Service worker updated [/]| Monitoring configured [V| Prometheus metrics scraping
+- [ ] Grafana dashboards imported
+
+(-] PagerDuty alerts wired
+- [ ] On-call rotation set for week
+
+## 5. Typography & Special Characters
+### 5.1 Special Characters & Entities
+Ampersand: A & B. Angle brackets: <tag> and </tag>. Quotes: “double" and ‘single’. Em dash: mdash — ndash hyphen-minus Ellipsis: waiting... vs proper: Copyright: (C) Registered: (R) Trademark: (TM).
+— -. ...
+x? y’ 2°. Chemical: H,0 Co,. Currency: $ | | Mathematical: + = and 1,234.56 1.234,56 EUR 1,23,456 INR.
+### 5.2 Long Unbreakable Tokens
+The following is a long identifier that may challenge line-wrapping: com.example.platform. services .authen tication. providers .oauth2.handlers .RefreshTokenExchangeHandler. And a long URL: https: //api.exampl e.com/v2/organisations/org_O1HXYZ/members?include=roles ,permissions&page_size=100&cursor=eyJpZC16 MTIzfQ.
+### 5.3 Mixed-Language Code Block
+# docker-compose. ym1
+version: "3.9" services:
+apl:
+image: registry.example.com/api:${TAG: -latest}
+environment:
+DATABASE_URL: “postgres: //user:${DB_PASS}@db : 5432/app" REDIS_ URL: "redis://:${REDIS_PASS}@cache: 6379/0" SECRET_KEY: "${SECRET_KEY}" depends_on:
+db:
+condition: service_healthy deploy:
+replicas: 3 update_config:
+parallelism: 1 delay: 10s failure_action: rollback db:
+image: postgres:16-alpine environment:
+POSTGRES_PASSWORD: "${DB_PASS}" healthcheck:
+test: ["CMD-SHELL", "pg_isready -U postgres"]
+interval: 5s timeout: 5s retries: 5 volumes:
+pgdata:/var/lib/postgresql/data - cache:
+image: redis:7-alpine command: redis-server --requirepass "${REDIS_PASS}"
+
+volumes:
+pgdata:
+### 5.4 Final Checklist Converter Validation
+— After running the converter, verify each item below. All items should be checked before the output is considered production-ready.
+- [ ] Headings H1-H3 present and correctly levelled
+- [ ] Bold text preserved in all paragraphs (J Italic text preserved in all paragraphs ] Bold-italic combinations preserved (J Checklist items render GFM task list syntax as ["] Checked boxes render [x] and unchecked [ ]
+as as
+- [ ] Code blocks fenced *** syntax with language hint use
+- [ ] Inline code backtick notation uses
+- [ ] All four tables render with correct column count
+- [ ] Table header bold and visually distinct row CJ Alternating background not lost (acceptable)
+row
+- [ ] Special characters not garbled (&, quotes)
+<, >, (-] Superscripts and subscripts handled gracefully
+- [ ] No extra blank lines inserted between list items
+- [ ] No content dropped boundaries across page [[ ] Callout blocks preserved blockquotes admonitions as or bdo test diocureent Genedtectp ogee sated ly ah Repos ab AR otitis oy ote ta anette red solely. Cor tor cathe Mes fatty
+
+volumes:
+pgdata:
+### 5.4 Final Checklist Converter Validation
+— After running the converter, verify each item below. All items should be checked before the output is considered production-ready.
+oO Headings H1—H3 and correctly levelled present (-] Bold text preserved in all paragraphs
+- [ ] Italic text preserved in all paragraphs J Bold-italic combinations preserved (J Checklist items render GFM task list syntax as
+- [ ] Checked boxes render [x] and unchecked [ ]
+as as (-] Code blocks fenced ** syntax with language hint use
+- [ ] Inline code backtick notation uses
+- [ ] All four tables render with correct column count (J Table header bold and visually distinct row (J Alternating background not lost (acceptable)
+row
+- [ ] Special characters not garbled (&, quotes)
+<, >, (-] Superscripts and subscripts handled gracefully (J No extra blank lines inserted between list items
+- [ ] No content dropped boundaries across page ] Caltout blocks preserved blockquotes admonitions as or bdhot te titecuneet Grose sited progenies St epee ab AQ Conte bine i ated soley tor at yethr Cray Gee tipe
