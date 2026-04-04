@@ -1,6 +1,9 @@
 import fitz
 import pdfplumber
+import pytesseract
+from PIL import Image
 import sys
+import os
 import re
 
 def overlaps(b1, b2):
@@ -403,15 +406,97 @@ def process_blocks(fitz_page, table_bboxes, rendered_tables, table_map, body_siz
 
     return md_lines, last_table_col_count, first_table_was_continuation
 
-def convert(pdf_path, output_path):
+def ocr_page(fitz_page):
+    """OCR a page that has no extractable text (scanned/image-based).
+    Returns markdown lines as plain paragraphs."""
+    pix = fitz_page.get_pixmap(dpi=300)
+    img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+    ocr_text = pytesseract.image_to_string(img)
+    
+    md_lines = []
+    for para in ocr_text.strip().split("\n\n"):
+        cleaned = para.strip()
+        if cleaned:
+            md_lines.append(cleaned)
+    return md_lines
+
+def llm_polish(markdown_text):
+    """Optional LLM pass to clean up markdown formatting.
+    Uses Google Gemini free tier. Requires GEMINI_API_KEY env var."""
+    api_key = os.environ.get("GEMINI_API_KEY", "")
+    if not api_key:
+        print("Warning: GEMINI_API_KEY not set. Skipping LLM polish.")
+        return markdown_text
+    
+    try:
+        import google.generativeai as genai
+    except ImportError:
+        print("Warning: google-generativeai not installed. Skipping LLM polish.")
+        print("  Install with: pip install google-generativeai")
+        return markdown_text
+    
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel("gemini-2.5-flash")
+    
+    prompt = (
+        "You are a markdown formatting fixer. Clean up this markdown that was extracted from a PDF.\n"
+        "Fix ONLY formatting issues:\n"
+        "- Merge sentences that were broken across lines (e.g. 'The quick\n\nbrown fox' → 'The quick brown fox')\n"
+        "- Remove stray/orphaned markdown markers (* or ** with no matching pair)\n"
+        "- Fix any obvious OCR artifacts in the text\n"
+        "- Normalize spacing around markdown elements\n\n"
+        "Do NOT:\n"
+        "- Change any content, meaning, or structure\n"
+        "- Add new headings, sections, or content\n"
+        "- Remove any tables, code blocks, checklists, or lists\n"
+        "- Wrap the output in markdown code fences\n\n"
+        "Return ONLY the cleaned markdown, nothing else:\n\n"
+    )
+    
+    # Chunk large documents to stay within token limits
+    max_chunk = 8000
+    if len(markdown_text) <= max_chunk:
+        try:
+            response = model.generate_content(prompt + markdown_text)
+            return response.text
+        except Exception as e:
+            print(f"Warning: LLM polish failed: {e}")
+            return markdown_text
+    
+    # Process in chunks, splitting on double newlines to avoid breaking elements
+    chunks = []
+    current = ""
+    for line in markdown_text.split("\n\n"):
+        if len(current) + len(line) + 2 > max_chunk:
+            chunks.append(current)
+            current = line
+        else:
+            current = current + "\n\n" + line if current else line
+    if current:
+        chunks.append(current)
+    
+    polished_chunks = []
+    for i, chunk in enumerate(chunks):
+        try:
+            response = model.generate_content(prompt + chunk)
+            polished_chunks.append(response.text)
+            print(f"  Polished chunk {i+1}/{len(chunks)}")
+        except Exception as e:
+            print(f"  Warning: Chunk {i+1} failed ({e}), keeping original")
+            polished_chunks.append(chunk)
+    
+    return "\n\n".join(polished_chunks)
+
+def convert(pdf_path, output_path, polish=False):
     sizes = get_sizes(pdf_path)
     if not sizes:
-        print("No text found.")
-        return
-
-    sizes.sort()
-    body_size = sizes[len(sizes) // 2]
-    max_size = sizes[-1]
+        print("No text found in any page via text extraction. Will try OCR.")
+        body_size = 12  # default fallback
+        max_size = 20
+    else:
+        sizes.sort()
+        body_size = sizes[len(sizes) // 2]
+        max_size = sizes[-1]
 
     doc = fitz.open(pdf_path)
     all_md_lines = []
@@ -419,6 +504,15 @@ def convert(pdf_path, output_path):
 
     with pdfplumber.open(pdf_path) as plumber_doc:
         for i, (fitz_page, plumber_page) in enumerate(zip(doc, plumber_doc.pages)):
+            
+            # Check if this page has extractable text
+            page_text = fitz_page.get_text().strip()
+            if len(page_text) < 20:
+                # Scanned/image page → OCR fallback
+                print(f"  Page {i+1}: No text found, using OCR...")
+                ocr_lines = ocr_page(fitz_page)
+                all_md_lines.extend(ocr_lines)
+                continue
             
             table_bboxes = [t.bbox for t in plumber_page.find_tables()]
             tables = plumber_page.extract_tables()
@@ -447,12 +541,23 @@ def convert(pdf_path, output_path):
         # Clean null characters from the final output
         output = "\n\n".join(all_md_lines)
         output = output.replace("\x00", "")
+        
+        # Optional LLM polish
+        if polish:
+            print("Polishing with LLM...")
+            output = llm_polish(output)
+        
         f.write(output)
 
     print(f"Done: {output_path}")
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print("Usage: python app.py input.pdf output.md")
+    if len(sys.argv) < 3:
+        print("Usage: python app.py input.pdf output.md [--polish]")
         sys.exit(1)
-    convert(sys.argv[1], sys.argv[2])
+    
+    pdf_path = sys.argv[1]
+    out_path = sys.argv[2]
+    polish = "--polish" in sys.argv
+    
+    convert(pdf_path, out_path, polish=polish)
