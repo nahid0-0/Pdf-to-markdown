@@ -1,14 +1,12 @@
 # Trainee SWE Screening Task - Sugarclass Limited
 
-**Role: Trainee Software Engineer**
+**Role:** Trainee Software Engineer
 
-**Submission Deadline: 4th April 2026, 8:00 PM**
+**Submission Deadline:** 4th April 2026, 8:00 PM
 
 ## Objective
 
-Build a CPU-based PDF to Markdown converter. The task evaluates your ability to process files,
-
-structure logic, and document your work.
+Build a CPU-based PDF to Markdown converter. The task evaluates your ability to process files, structure logic, and document your work.
 
 ## Core Requirements
 
@@ -60,10 +58,6 @@ structure logic, and document your work.
 
 ## Evaluation Criteria
 
-
----
-
-
 | Criteria | Weight |
 | --- | --- |
 | Code Quality | 25% |
@@ -85,6 +79,3 @@ structure logic, and document your work.
 ## Note
 
 Focus on clarity, clean structure, and problem-solving approach over perfection.
-
-
----
